@@ -424,7 +424,7 @@ function declineIncoming() {
 function handleRemoteStream(stream,peerId) {
   if (!currentCall) currentCall={peerId,kind:stream.getVideoTracks().length?'video':'audio',state:'connected'};
   els.remoteVideo.srcObject=stream; els.remoteVideo.play().catch(()=>{});
-  if (stream.getVideoTracks().length) els.remotePlaceholder.classList.add('hidden');
+  if (currentCall.kind==='video') els.remotePlaceholder.classList.add('hidden');
   else { els.remotePlaceholder.classList.remove('hidden'); els.remotePlaceholder.querySelector('span').textContent='Audio connected'; }
   showCallOverlay(currentCall.kind,currentCall.kind==='video'?'Video call':'Audio call'); startCallTimer();
 }
@@ -434,8 +434,8 @@ function showCallOverlay(kind,title) {
   els.cameraButton.classList.toggle('hidden',kind!=='video');
   els.localVideo.classList.toggle('hidden',kind!=='video');
   if (localStream) { els.localVideo.srcObject=localStream; els.localVideo.play().catch(()=>{}); }
-  els.remotePlaceholder.classList.remove('hidden');
-  els.remotePlaceholder.querySelector('span').textContent=currentCall?.state==='calling'?'Waiting for answer…':'Connecting media…';
+  els.remotePlaceholder.classList.toggle('hidden',kind==='video');
+  els.remotePlaceholder.querySelector('span').textContent=currentCall?.state==='calling'?'Waiting for answer…':'Audio connected';
   els.callAvatar.textContent=initials(activeRoom?.name); els.remoteName.textContent=activeRoom?.peerName||'Room peer';
 }
 
