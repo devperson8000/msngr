@@ -111,7 +111,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .privacy-note { margin-top:28px; display:flex; gap:7px; align-items:center; color:var(--subtle); font-size:.75rem; }
 .privacy-note svg { width:15px; }
 
-.chat-view { height:100%; display:grid; grid-template-rows:81px auto minmax(0,1fr) auto auto; }
+.chat-view { height:100%; min-height:0; overflow:hidden; display:grid; grid-template-rows:81px auto minmax(0,1fr) auto auto; }
 .chat-head { display:flex; align-items:center; padding:0 19px 0 24px; border-bottom:1px solid var(--line); background:rgba(15,18,25,.78); backdrop-filter:blur(18px); z-index:3; }
 .chat-title { min-width:0; margin-left:12px; }
 .chat-title>div { display:flex; align-items:center; gap:5px; }
@@ -152,9 +152,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round
 .typing-row span:nth-child(2){animation-delay:.15s}.typing-row span:nth-child(3){animation-delay:.3s}
 .typing-row b { font-weight:500; margin-left:4px; }
 @keyframes bounce { to{transform:translateY(-3px);opacity:.45} }
-.composer { display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:end; gap:7px; margin:0 clamp(14px,3vw,36px) 20px; padding:8px 8px 8px 10px; border:1px solid var(--line-strong); border-radius:16px; background:#191e28; box-shadow:0 12px 35px rgba(0,0,0,.16); }
+.composer { align-self:end; min-height:56px; max-height:156px; overflow:hidden; display:grid; grid-template-columns:auto minmax(0,1fr) auto auto; align-items:end; gap:7px; margin:0 clamp(14px,3vw,36px) 20px; padding:8px 8px 8px 10px; border:1px solid var(--line-strong); border-radius:16px; background:#191e28; box-shadow:0 12px 35px rgba(0,0,0,.16); }
 .composer:focus-within { border-color:rgba(124,92,255,.48); box-shadow:0 0 0 3px rgba(124,92,255,.08),0 12px 35px rgba(0,0,0,.16); }
-.composer textarea { align-self:center; border:0; outline:0; resize:none; max-height:132px; background:transparent; color:var(--text); line-height:1.45; padding:7px 2px; font-size:.9rem; }
+.composer textarea { align-self:center; width:100%; height:38px; min-height:38px; max-height:120px; overflow-y:auto; border:0; outline:0; resize:none; background:transparent; color:var(--text); line-height:1.45; padding:8px 2px; font-size:.9rem; }
 .composer textarea::placeholder { color:#6c7384; }
 .composer-icon,.send-button { width:38px; height:38px; border:0; border-radius:11px; display:grid; place-items:center; cursor:pointer; }
 .composer-icon { background:transparent; color:var(--muted); }
