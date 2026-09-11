@@ -211,7 +211,7 @@ async function openRoom(id,{showInvite=false}={}) {
   const room=roomById(id); if (!room) return;
   activeRoomId=id; activeRoom=room; room.lastActive=Date.now(); save();
   els.emptyState.classList.add('hidden'); els.chatView.classList.remove('hidden'); els.appShell.classList.add('chat-open');
-  renderRooms(els.roomSearch.value); renderMessages(); updateRoomHeader();
+  renderRooms(els.roomSearch.value); renderMessages(); updateRoomHeader(); resizeComposer();
   await connectRoom(room);
   if (showInvite) showInviteModal();
 }
@@ -234,12 +234,21 @@ async function connectRoom(room) {
     actions.typing=p2pRoom.makeAction('typing');
     actions.sync=p2pRoom.makeAction('history');
     actions.call=p2pRoom.makeAction('call');
+    actions.roomInfo=p2pRoom.makeAction('room-info',{
+      kind:'request',
+      onRequest:()=>({name:activeRoom?.name||'Conversation'})
+    });
 
     p2pRoom.onPeerJoin=peerId=>{
       peers.add(peerId); updateRoomHeader(); renderRooms(els.roomSearch.value);
       els.connectionBanner.classList.add('hidden');
       actions.profile.send({...profile,userId:profileId(),roomName:activeRoom.name},{target:peerId}).catch(()=>{});
       actions.sync.send((activeRoom.messages||[]).slice(-150),{target:peerId}).catch(()=>{});
+      if (activeRoom.name.startsWith('Room ')) {
+        actions.roomInfo.request(null,{target:peerId,timeoutMs:6000})
+          .then(info=>applyRoomInfo(info))
+          .catch(()=>{});
+      }
       toast('Peer connected');
     };
     p2pRoom.onPeerLeave=peerId=>{
@@ -279,6 +288,14 @@ async function connectRoom(room) {
   } catch (error) {
     console.error(error); els.bannerText.textContent='Messaging network unavailable. You can still manage rooms and retry.'; toast('P2P network could not load',true);
   }
+}
+
+function applyRoomInfo(info) {
+  if (!activeRoom || !info?.name || !activeRoom.name.startsWith('Room ')) return;
+  const name=String(info.name).trim().slice(0,40);
+  if (!name || name.startsWith('Room ')) return;
+  activeRoom.name=name; activeRoom.lastActive=Date.now(); save();
+  updateRoomHeader(); renderMessages(); renderRooms(els.roomSearch.value);
 }
 
 function mergeHistory(list) {
@@ -449,7 +466,8 @@ function cleanupCall(systemText='') {
 }
 
 function resizeComposer() {
-  els.messageInput.style.height='auto'; els.messageInput.style.height=`${Math.min(els.messageInput.scrollHeight,132)}px`;
+  els.messageInput.style.height='38px';
+  els.messageInput.style.height=`${Math.max(38,Math.min(els.messageInput.scrollHeight,120))}px`;
   els.charCount.textContent=els.messageInput.value.length>3500?`${els.messageInput.value.length}/4000`:'';
 }
 
