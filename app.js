@@ -60,6 +60,9 @@ let currentCall = null;
 let localStream = null;
 let callInterval = null;
 let callStartedAt = null;
+let peerPingTimer = null;
+let peerLatency = null;
+let reconnectTimer = null;
 
 function loadState() {
   try {
@@ -144,6 +147,10 @@ function renderRooms(filter='') {
   els.roomCount.textContent=state.rooms.length;
   els.roomList.innerHTML=''; els.roomStack.innerHTML='';
 
+  if (!visible.length) {
+    els.roomList.innerHTML=`<div class="rooms-empty"><span>${filter?'No rooms found':'No rooms yet'}</span><small>${filter?'Try another search':'Create or join one to get started'}</small></div>`;
+  }
+
   visible.forEach(room => {
     const last=room.messages?.at(-1);
     const online=room.id===activeRoomId && peers.size>0;
@@ -176,7 +183,9 @@ function renderMessages() {
   for (const msg of list) {
     if (msg.system) { html+=`<div class="system-message">${escapeHtml(msg.text)}</div>`; continue; }
     const self=msg.sender===profileId();
-    html+=`<article class="message-row${self?' self':''}">${!self?`<span class="message-author">${escapeHtml(msg.name||'Peer')}</span>`:''}<div class="message-bubble">${escapeHtml(msg.text)} <time class="message-time">${formatTime(msg.time)}</time></div></article>`;
+    const stateIcon=msg.status==='delivered'?'✓✓':msg.status==='queued'?'○':'✓';
+    const stateLabel=msg.status==='delivered'?'Delivered':msg.status==='queued'?'Waiting to sync':'Sent';
+    html+=`<article class="message-row${self?' self':''}">${!self?`<span class="message-author">${escapeHtml(msg.name||'Peer')}</span>`:''}<div class="message-bubble">${escapeHtml(msg.text)} <span class="message-meta"><time class="message-time">${formatTime(msg.time)}</time>${self?`<span class="message-status ${msg.status||'sent'}" title="${stateLabel}" aria-label="${stateLabel}">${stateIcon}</span>`:''}</span></div></article>`;
   }
   els.messages.innerHTML=html;
   requestAnimationFrame(()=>els.messages.scrollTop=els.messages.scrollHeight);
@@ -202,7 +211,8 @@ function updateRoomHeader() {
   els.remoteName.textContent=activeRoom.peerName || 'Room peer';
   const connected=peers.size>0;
   els.connectionStatus.classList.toggle('online',connected);
-  els.connectionStatus.innerHTML=`<i></i>${connected ? `${peers.size} peer${peers.size===1?'':'s'} connected` : 'Waiting for someone to join'}`;
+  const latency=connected && Number.isFinite(peerLatency) ? ` · ${peerLatency} ms` : '';
+  els.connectionStatus.innerHTML=`<i></i>${connected ? `${peers.size} peer${peers.size===1?'':'s'} connected${latency}` : 'Waiting for someone to join'}`;
   els.audioCallButton.disabled=!connected;
   els.videoCallButton.disabled=!connected;
 }
@@ -218,7 +228,7 @@ async function openRoom(id,{showInvite=false}={}) {
 
 async function connectRoom(room) {
   if (p2pRoom) { try { p2pRoom.leave(); } catch {} }
-  peers=new Set(); actions={}; updateRoomHeader();
+  clearPeerHealth(); peers=new Set(); actions={}; updateRoomHeader();
   els.connectionBanner.classList.remove('hidden'); els.bannerText.textContent='Connecting to the room…';
   try {
     els.bannerText.textContent='Loading secure P2P connection…';
@@ -228,12 +238,20 @@ async function connectRoom(room) {
     p2pRoom=joinRoom({
       appId:APP_ID,
       relayConfig:{redundancy:10,warnOnRelayFailure:false}
-    },room.id);
+    },room.id,{
+      onJoinError:details=>{
+        if (activeRoomId!==room.id) return;
+        console.warn('P2P join issue',details);
+        els.connectionBanner.classList.remove('hidden');
+        els.bannerText.textContent='Direct connection interrupted — retrying discovery…';
+      }
+    });
     actions.message=p2pRoom.makeAction('message');
     actions.profile=p2pRoom.makeAction('profile');
     actions.typing=p2pRoom.makeAction('typing');
     actions.sync=p2pRoom.makeAction('history');
     actions.call=p2pRoom.makeAction('call');
+    actions.receipt=p2pRoom.makeAction('receipt');
     actions.roomInfo=p2pRoom.makeAction('room-info',{
       kind:'request',
       onRequest:()=>({name:activeRoom?.name||'Conversation'})
@@ -241,9 +259,19 @@ async function connectRoom(room) {
 
     p2pRoom.onPeerJoin=peerId=>{
       peers.add(peerId); updateRoomHeader(); renderRooms(els.roomSearch.value);
+      startPeerHealth(peerId);
       els.connectionBanner.classList.add('hidden');
       actions.profile.send({...profile,userId:profileId(),roomName:activeRoom.name},{target:peerId}).catch(()=>{});
-      actions.sync.send((activeRoom.messages||[]).slice(-150),{target:peerId}).catch(()=>{});
+      const history=(activeRoom.messages||[]).slice(-150).map(message=>{
+        const copy={...message}; delete copy.status; return copy;
+      });
+      actions.sync.send(history,{target:peerId}).then(()=>{
+        let changed=false;
+        (activeRoom.messages||[]).forEach(message=>{
+          if(message.sender===profileId() && message.status==='queued'){message.status='sent';changed=true;}
+        });
+        if(changed){save();renderMessages();}
+      }).catch(()=>{});
       if (activeRoom.name.startsWith('Room ')) {
         actions.roomInfo.request(null,{target:peerId,timeoutMs:6000})
           .then(info=>applyRoomInfo(info))
@@ -252,13 +280,14 @@ async function connectRoom(room) {
       toast('Peer connected');
     };
     p2pRoom.onPeerLeave=peerId=>{
-      peers.delete(peerId); updateRoomHeader(); renderRooms(els.roomSearch.value);
+      peers.delete(peerId); clearPeerHealth(); updateRoomHeader(); renderRooms(els.roomSearch.value);
       if (currentCall?.peerId===peerId) cleanupCall('Call ended');
       addSystem('Peer disconnected');
     };
     p2pRoom.onPeerStream=(stream,peerId)=>handleRemoteStream(stream,peerId);
 
     actions.message.onMessage=(msg,{peerId})=>{
+      if (msg?.id) actions.receipt.send({id:msg.id},{target:peerId}).catch(()=>{});
       if (!msg?.id || activeRoom.messages?.some(x=>x.id===msg.id)) return;
       activeRoom.messages ||= []; activeRoom.messages.push({...msg,peerId}); activeRoom.lastActive=Date.now(); save();
       renderMessages(); renderRooms(els.roomSearch.value);
@@ -275,7 +304,19 @@ async function connectRoom(room) {
       clearTimeout(remoteTypingTimer);
       if (value) remoteTypingTimer=setTimeout(()=>els.typingRow.classList.remove('show'),1800);
     };
-    actions.sync.onMessage=list=>mergeHistory(list);
+    actions.sync.onMessage=(list,{peerId})=>{
+      mergeHistory(list);
+      if (!Array.isArray(list)) return;
+      list.filter(message=>message?.id && message.sender!==profileId()).forEach(message=>{
+        actions.receipt.send({id:message.id},{target:peerId}).catch(()=>{});
+      });
+    };
+    actions.receipt.onMessage=data=>{
+      const id=data?.id;
+      const message=activeRoom?.messages?.find(item=>item.id===id && item.sender===profileId());
+      if (!message || message.status==='delivered') return;
+      message.status='delivered'; save(); renderMessages();
+    };
     actions.call.onMessage=(data,{peerId})=>handleCallSignal(data,peerId);
     setTimeout(()=>{
       if(activeRoomId!==room.id || peers.size) return;
@@ -301,7 +342,7 @@ function applyRoomInfo(info) {
 function mergeHistory(list) {
   if (!Array.isArray(list) || !activeRoom) return;
   const map=new Map((activeRoom.messages||[]).map(x=>[x.id,x]));
-  list.forEach(msg=>{ if(msg?.id && typeof msg.text==='string') map.set(msg.id,msg); });
+  list.forEach(msg=>{ if(msg?.id && typeof msg.text==='string' && !map.has(msg.id)) map.set(msg.id,msg); });
   activeRoom.messages=[...map.values()].sort((a,b)=>a.time-b.time).slice(-300); save(); renderMessages(); renderRooms(els.roomSearch.value);
 }
 
@@ -312,13 +353,68 @@ function addSystem(text) {
 
 async function sendMessage(text) {
   const clean=text.trim(); if (!clean || !activeRoom) return;
-  const msg={id:uid(),text:clean,time:Date.now(),sender:profileId(),name:profile.name};
+  const msg={id:uid(),text:clean,time:Date.now(),sender:profileId(),name:profile.name,status:peers.size?'sending':'queued'};
   activeRoom.messages ||= []; activeRoom.messages.push(msg); activeRoom.lastActive=Date.now(); save();
   renderMessages(); renderRooms(els.roomSearch.value);
   els.messageInput.value=''; resizeComposer();
   if (actions.message && peers.size) {
-    try { await actions.message.send(msg); } catch { toast('Message saved; it will sync when you reconnect',true); }
+    try {
+      const outbound={...msg}; delete outbound.status;
+      await actions.message.send(outbound); msg.status='sent'; save(); renderMessages();
+    } catch { msg.status='queued'; save(); renderMessages(); toast('Message saved; it will sync when you reconnect',true); }
   }
+}
+
+function startPeerHealth(peerId) {
+  clearPeerHealth();
+  const measure=async()=>{
+    if (!p2pRoom || !peers.has(peerId)) return;
+    try { peerLatency=Math.round(await p2pRoom.ping(peerId)); updateRoomHeader(); }
+    catch { peerLatency=null; }
+  };
+  measure(); peerPingTimer=setInterval(measure,10000);
+}
+
+function clearPeerHealth() {
+  clearInterval(peerPingTimer); peerPingTimer=null; peerLatency=null;
+}
+
+async function getCallMedia(kind) {
+  const stream=await navigator.mediaDevices.getUserMedia({
+    audio:{
+      echoCancellation:true,
+      noiseSuppression:true,
+      autoGainControl:true,
+      channelCount:{ideal:2},
+      sampleRate:{ideal:48000},
+      latency:{ideal:.02}
+    },
+    video:kind==='video'?{
+      width:{ideal:1920},
+      height:{ideal:1080},
+      frameRate:{ideal:30,max:60},
+      facingMode:'user'
+    }:false
+  });
+  stream.getAudioTracks().forEach(track=>{ try { track.contentHint='speech'; } catch {} });
+  stream.getVideoTracks().forEach(track=>{ try { track.contentHint='motion'; } catch {} });
+  return stream;
+}
+
+async function tuneCallQuality(peerId,kind) {
+  const connection=p2pRoom?.getPeers?.()[peerId];
+  if (!connection) return;
+  await Promise.all(connection.getSenders().map(async sender=>{
+    const mediaKind=sender.track?.kind; if (!mediaKind) return;
+    const parameters=sender.getParameters(); parameters.encodings ||= [{}];
+    parameters.encodings.forEach(encoding=>{
+      if (mediaKind==='audio') encoding.maxBitrate=128000;
+      if (mediaKind==='video') { encoding.maxBitrate=3000000; encoding.maxFramerate=30; }
+    });
+    if (mediaKind==='video' && 'degradationPreference' in parameters) parameters.degradationPreference='maintain-framerate';
+    try { await sender.setParameters(parameters); } catch {}
+  }));
+  if (currentCall?.peerId===peerId) els.callTitle.textContent=kind==='video'?'Video call · HD':'Audio call · Clear voice';
 }
 
 function openRoomModal(mode) {
@@ -376,7 +472,7 @@ async function startCall(kind) {
   if (!peerId) { toast('Wait for someone to connect first',true); return; }
   if (currentCall || incomingCall) { toast('A call is already active',true); return; }
   try {
-    localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:kind==='video'});
+    localStream=await getCallMedia(kind);
     currentCall={peerId,kind,state:'calling'}; showCallOverlay(kind,'Calling…');
     await actions.call.send({type:'request',kind,name:profile.name},{target:peerId});
   } catch (error) { cleanupCall(); toast(mediaError(error),true); }
@@ -398,7 +494,7 @@ async function handleCallSignal(data,peerId) {
   }
   if (data.type==='accept' && currentCall?.peerId===peerId) {
     currentCall.state='connected';
-    try { await p2pRoom.addStream(localStream,{target:peerId}); startCallTimer(); els.callTitle.textContent=currentCall.kind==='video'?'Video call':'Audio call'; }
+    try { await p2pRoom.addStream(localStream,{target:peerId}); await tuneCallQuality(peerId,currentCall.kind); setTimeout(()=>tuneCallQuality(peerId,currentCall?.kind),600); startCallTimer(); }
     catch { cleanupCall(); toast('Could not send your media',true); }
   }
   if ((data.type==='decline'||data.type==='busy') && currentCall?.peerId===peerId) { cleanupCall(); toast(data.type==='busy'?'They are already in a call':'Call declined'); }
@@ -409,9 +505,10 @@ async function acceptIncoming() {
   if (!incomingCall) return;
   const pending=incomingCall; incomingCall=null;
   try {
-    localStream=await navigator.mediaDevices.getUserMedia({audio:true,video:pending.kind==='video'});
+    localStream=await getCallMedia(pending.kind);
     currentCall={...pending,state:'connected'}; hideModals(); showCallOverlay(pending.kind,pending.kind==='video'?'Video call':'Audio call'); startCallTimer();
     await p2pRoom.addStream(localStream,{target:pending.peerId});
+    await tuneCallQuality(pending.peerId,pending.kind); setTimeout(()=>tuneCallQuality(pending.peerId,currentCall?.kind),600);
     await actions.call.send({type:'accept'},{target:pending.peerId});
   } catch (error) { actions.call.send({type:'decline'},{target:pending.peerId}).catch(()=>{}); cleanupCall(); toast(mediaError(error),true); }
 }
@@ -430,7 +527,7 @@ function handleRemoteStream(stream,peerId) {
 }
 
 function showCallOverlay(kind,title) {
-  els.callOverlay.classList.remove('hidden'); els.callTitle.textContent=title;
+  els.callOverlay.classList.remove('hidden'); els.callOverlay.classList.toggle('audio-only',kind!=='video'); els.callTitle.textContent=title;
   els.cameraButton.classList.toggle('hidden',kind!=='video');
   els.localVideo.classList.toggle('hidden',kind!=='video');
   if (localStream) { els.localVideo.srcObject=localStream; els.localVideo.play().catch(()=>{}); }
@@ -460,6 +557,7 @@ function cleanupCall(systemText='') {
   const remote=els.remoteVideo.srcObject; if (remote) remote.getTracks().forEach(track=>track.stop());
   localStream=null; currentCall=null; incomingCall=null; els.localVideo.srcObject=null; els.remoteVideo.srcObject=null;
   els.callOverlay.classList.add('hidden'); els.remotePlaceholder.classList.remove('hidden');
+  els.callOverlay.classList.remove('audio-only');
   els.muteButton.classList.remove('off'); els.cameraButton.classList.remove('off');
   clearInterval(callInterval); callInterval=null; callStartedAt=null; els.callTimer.textContent='00:00';
   if (systemText) addSystem(systemText);
@@ -518,7 +616,16 @@ function setupEvents() {
   els.muteButton.addEventListener('click',()=>{ const track=localStream?.getAudioTracks()[0]; if(!track)return; track.enabled=!track.enabled; els.muteButton.classList.toggle('off',!track.enabled); els.muteButton.querySelector('span').textContent=track.enabled?'Mute':'Unmute'; });
   els.cameraButton.addEventListener('click',()=>{ const track=localStream?.getVideoTracks()[0]; if(!track)return; track.enabled=!track.enabled; els.cameraButton.classList.toggle('off',!track.enabled); els.cameraButton.querySelector('span').textContent=track.enabled?'Camera':'Camera off'; });
   document.addEventListener('visibilitychange',()=>{ if(!document.hidden) document.title='msngr'; });
-  addEventListener('beforeunload',()=>{ try{p2pRoom?.leave();}catch{} localStream?.getTracks().forEach(t=>t.stop()); });
+  addEventListener('offline',()=>{
+    if (!activeRoom) return;
+    els.connectionBanner.classList.remove('hidden'); els.bannerText.textContent='You’re offline — messages will stay safely on this device';
+  });
+  addEventListener('online',()=>{
+    if (!activeRoom) return;
+    clearTimeout(reconnectTimer); toast('Back online — reconnecting');
+    reconnectTimer=setTimeout(()=>{ if(activeRoom && !currentCall) connectRoom(activeRoom); },500);
+  });
+  addEventListener('beforeunload',()=>{ clearPeerHealth(); clearTimeout(reconnectTimer); try{p2pRoom?.leave();}catch{} localStream?.getTracks().forEach(t=>t.stop()); });
 }
 
 function registerWebMcp() {
