@@ -1,4 +1,5 @@
 let joinRoomImpl = null;
+let networkApi = null;
 let networkLoadPromise = null;
 
 function loadNetworking() {
@@ -8,6 +9,7 @@ function loadNetworking() {
     .catch(() => import('https://esm.sh/trystero?bundle'))
     .then(module => {
       if (typeof module.joinRoom !== 'function') throw new Error('P2P library did not load correctly');
+      networkApi = module;
       joinRoomImpl = module.joinRoom;
       return joinRoomImpl;
     })
@@ -23,6 +25,7 @@ const qs = new URLSearchParams(location.search);
 const clientScope = qs.get('client') || 'main';
 const STORAGE_KEY = `msngr:v1:${clientScope}`;
 const PROFILE_KEY = `msngr:profile:${clientScope}`;
+const legacySessionId = sessionStorage.getItem(`msngr:id:${clientScope}`);
 
 const $ = id => document.getElementById(id);
 const els = Object.fromEntries([
@@ -40,6 +43,10 @@ const avatarColors = [
 
 let state = loadState();
 let profile = loadProfile();
+if (!profile.id) {
+  profile.id = legacySessionId || uid();
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
 let activeRoomId = null;
 let activeRoom = null;
 let p2pRoom = null;
@@ -67,7 +74,7 @@ function loadProfile() {
     if (saved.name) return saved;
   } catch {}
   const suffix = clientScope === 'main' ? '' : ` Test ${clientScope.slice(-2)}`;
-  return { name: `Guest${suffix}`, color: Math.floor(Math.random() * avatarColors.length) };
+  return { name: `Guest${suffix}`, color: Math.floor(Math.random() * avatarColors.length), id: legacySessionId || uid() };
 }
 
 function save() {
@@ -176,9 +183,16 @@ function renderMessages() {
 }
 
 function profileId() {
-  let id=sessionStorage.getItem(`msngr:id:${clientScope}`);
-  if (!id) { id=uid(); sessionStorage.setItem(`msngr:id:${clientScope}`,id); }
-  return id;
+  return profile.id;
+}
+
+function migrateLegacyIdentity() {
+  if (!legacySessionId || legacySessionId===profile.id) return;
+  let changed=false;
+  state.rooms.forEach(room=>(room.messages||[]).forEach(message=>{
+    if(message.sender===legacySessionId){message.sender=profile.id;changed=true;}
+  }));
+  if(changed) save();
 }
 
 function updateRoomHeader() {
@@ -211,7 +225,10 @@ async function connectRoom(room) {
     const joinRoom=await loadNetworking();
     if (activeRoomId!==room.id) return;
     els.bannerText.textContent='Connecting to the room…';
-    p2pRoom=joinRoom({appId:APP_ID},room.id);
+    p2pRoom=joinRoom({
+      appId:APP_ID,
+      relayConfig:{redundancy:10,warnOnRelayFailure:false}
+    },room.id);
     actions.message=p2pRoom.makeAction('message');
     actions.profile=p2pRoom.makeAction('profile');
     actions.typing=p2pRoom.makeAction('typing');
@@ -221,7 +238,7 @@ async function connectRoom(room) {
     p2pRoom.onPeerJoin=peerId=>{
       peers.add(peerId); updateRoomHeader(); renderRooms(els.roomSearch.value);
       els.connectionBanner.classList.add('hidden');
-      actions.profile.send({...profile,userId:profileId()},{target:peerId}).catch(()=>{});
+      actions.profile.send({...profile,userId:profileId(),roomName:activeRoom.name},{target:peerId}).catch(()=>{});
       actions.sync.send((activeRoom.messages||[]).slice(-150),{target:peerId}).catch(()=>{});
       toast('Peer connected');
     };
@@ -240,7 +257,9 @@ async function connectRoom(room) {
     };
     actions.profile.onMessage=(value,{peerId})=>{
       if (!value?.name) return;
-      activeRoom.peerName=value.name; activeRoom.peerProfileId=value.userId; activeRoom.lastActive=Date.now(); save(); updateRoomHeader(); renderRooms(els.roomSearch.value);
+      activeRoom.peerName=value.name; activeRoom.peerProfileId=value.userId;
+      if (value.roomName && activeRoom.name.startsWith('Room ')) activeRoom.name=String(value.roomName).slice(0,40);
+      activeRoom.lastActive=Date.now(); save(); updateRoomHeader(); renderMessages(); renderRooms(els.roomSearch.value);
     };
     actions.typing.onMessage=value=>{
       els.typingRow.classList.toggle('show',Boolean(value));
@@ -249,7 +268,14 @@ async function connectRoom(room) {
     };
     actions.sync.onMessage=list=>mergeHistory(list);
     actions.call.onMessage=(data,{peerId})=>handleCallSignal(data,peerId);
-    setTimeout(()=>{ if(activeRoomId===room.id && peers.size===0){ els.bannerText.textContent='Room open — waiting for the invite to be opened'; } },1200);
+    setTimeout(()=>{
+      if(activeRoomId!==room.id || peers.size) return;
+      const sockets=typeof networkApi?.getRelaySockets==='function' ? Object.values(networkApi.getRelaySockets()) : [];
+      const open=sockets.filter(socket=>socket?.readyState===WebSocket.OPEN).length;
+      els.bannerText.textContent=open
+        ? `Discovery ready on ${open} relay${open===1?'':'s'} — waiting for the other browser`
+        : 'Discovery relays are blocked or offline — check browser network access';
+    },4500);
   } catch (error) {
     console.error(error); els.bannerText.textContent='Messaging network unavailable. You can still manage rooms and retry.'; toast('P2P network could not load',true);
   }
@@ -528,7 +554,7 @@ function registerWebMcp() {
 }
 
 async function init() {
-  renderProfile(); renderRooms(); setupEvents(); registerWebMcp(); resizeComposer();
+  migrateLegacyIdentity(); renderProfile(); renderRooms(); setupEvents(); registerWebMcp(); resizeComposer();
   const linked=normalizeCode(qs.get('room')||'');
   if (linked) {
     let room=roomById(linked);
