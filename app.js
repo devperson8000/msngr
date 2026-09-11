@@ -1,4 +1,22 @@
-import { joinRoom } from 'https://esm.run/trystero';
+let joinRoomImpl = null;
+let networkLoadPromise = null;
+
+function loadNetworking() {
+  if (joinRoomImpl) return Promise.resolve(joinRoomImpl);
+  if (networkLoadPromise) return networkLoadPromise;
+  networkLoadPromise = import('https://esm.run/trystero')
+    .catch(() => import('https://esm.sh/trystero?bundle'))
+    .then(module => {
+      if (typeof module.joinRoom !== 'function') throw new Error('P2P library did not load correctly');
+      joinRoomImpl = module.joinRoom;
+      return joinRoomImpl;
+    })
+    .catch(error => {
+      networkLoadPromise = null;
+      throw error;
+    });
+  return networkLoadPromise;
+}
 
 const APP_ID = 'devperson8000-msngr-p2p-v1';
 const qs = new URLSearchParams(location.search);
@@ -189,6 +207,10 @@ async function connectRoom(room) {
   peers=new Set(); actions={}; updateRoomHeader();
   els.connectionBanner.classList.remove('hidden'); els.bannerText.textContent='Connecting to the room…';
   try {
+    els.bannerText.textContent='Loading secure P2P connection…';
+    const joinRoom=await loadNetworking();
+    if (activeRoomId!==room.id) return;
+    els.bannerText.textContent='Connecting to the room…';
     p2pRoom=joinRoom({appId:APP_ID},room.id);
     actions.message=p2pRoom.makeAction('message');
     actions.profile=p2pRoom.makeAction('profile');
@@ -229,7 +251,7 @@ async function connectRoom(room) {
     actions.call.onMessage=(data,{peerId})=>handleCallSignal(data,peerId);
     setTimeout(()=>{ if(activeRoomId===room.id && peers.size===0){ els.bannerText.textContent='Room open — waiting for the invite to be opened'; } },1200);
   } catch (error) {
-    console.error(error); els.bannerText.textContent='Could not connect. Check your internet and retry.'; toast('Room connection failed',true);
+    console.error(error); els.bannerText.textContent='Messaging network unavailable. You can still manage rooms and retry.'; toast('P2P network could not load',true);
   }
 }
 
