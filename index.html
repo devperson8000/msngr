@@ -185,6 +185,62 @@
         <button class="accept" id="acceptCall"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 5.2 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.7c.12.9.34 1.77.65 2.6a2 2 0 0 1-.45 2.1L9 10.6a16 16 0 0 0 4.4 4.4l1.2-1.2a2 2 0 0 1 2.1-.45c.83.31 1.7.53 2.6.65a2 2 0 0 1 1.7 2Z"/></svg><span>Accept</span></button>
       </div>
     </section>
+
+    <section class="modal settings-modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <button class="modal-close" id="settingsClose" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
+      <span class="eyebrow">PERSONALIZE</span>
+      <h2 id="settingsTitle">Settings</h2>
+
+      <div class="settings-scroll">
+        <section class="settings-section">
+          <div class="settings-heading"><strong>Profile</strong><span>Visible to connected peers</span></div>
+          <div class="profile-editor">
+            <div class="avatar settings-avatar" id="settingsAvatarPreview">M</div>
+            <div class="profile-fields">
+              <label class="field compact-field"><span>Display name</span><input id="settingsNameInput" maxlength="28" autocomplete="nickname"></label>
+              <div class="inline-actions">
+                <button class="settings-action" id="changeAvatarButton" type="button">Choose photo</button>
+                <button class="settings-action subtle-action" id="removeAvatarButton" type="button">Remove</button>
+              </div>
+              <input class="visually-hidden" id="avatarFileInput" type="file" accept="image/*">
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <div class="settings-heading"><strong>Appearance</strong><span>Only changes on this device</span></div>
+          <div class="setting-row setting-column">
+            <div><strong>Accent colour</strong><span>Choose the colour used for buttons and your messages</span></div>
+            <div class="accent-options" id="accentOptions" aria-label="Accent colour">
+              <button type="button" data-accent="purple" style="--swatch:#7c5cff" aria-label="Purple"></button>
+              <button type="button" data-accent="blue" style="--swatch:#2d8cff" aria-label="Blue"></button>
+              <button type="button" data-accent="green" style="--swatch:#14b88a" aria-label="Green"></button>
+              <button type="button" data-accent="rose" style="--swatch:#e85d8e" aria-label="Rose"></button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <div><strong>Chat background</strong><span>Use an image from this device</span></div>
+            <div class="inline-actions">
+              <button class="settings-action" id="changeWallpaperButton" type="button">Choose</button>
+              <button class="settings-action subtle-action" id="removeWallpaperButton" type="button">Clear</button>
+            </div>
+            <input class="visually-hidden" id="wallpaperFileInput" type="file" accept="image/*">
+          </div>
+          <label class="setting-row setting-slider"><div><strong>Background visibility</strong><span>Keep messages easy to read</span></div><input id="wallpaperVisibility" type="range" min="12" max="58" value="30"><output id="wallpaperVisibilityValue">30%</output></label>
+          <label class="setting-row"><div><strong>Message spacing</strong><span>Control chat density</span></div><select id="densitySelect"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
+          <label class="setting-row setting-slider"><div><strong>Interface size</strong><span>Scale text and controls</span></div><input id="fontScale" type="range" min="90" max="110" step="5" value="100"><output id="fontScaleValue">100%</output></label>
+        </section>
+
+        <section class="settings-section">
+          <div class="settings-heading"><strong>Chat</strong><span>Behaviour and feedback</span></div>
+          <label class="setting-row"><div><strong>Enter to send</strong><span>Use Shift + Enter for a new line</span></div><input class="switch" id="enterToSendToggle" type="checkbox" checked></label>
+          <label class="setting-row"><div><strong>Notification sounds</strong><span>Play a soft tone for messages and calls</span></div><input class="switch" id="soundsToggle" type="checkbox" checked></label>
+          <label class="setting-row"><div><strong>Reduce motion</strong><span>Turn off interface animations</span></div><input class="switch" id="motionToggle" type="checkbox"></label>
+        </section>
+      </div>
+
+      <button class="modal-submit settings-save" id="settingsSaveButton">Save settings <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
+    </section>
   </div>
 
   <div class="context-menu hidden" id="roomMenu">
