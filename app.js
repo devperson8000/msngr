@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 const $ = (id) => document.getElementById(id);
-const envUrl = import.meta.env.VITE_SUPABASE_URL;
-const envKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const envUrl = import.meta.env.VITE_SUPABASE_URL || 'https://uglcxkakkilfndubgrac.supabase.co';
+const envKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_B2ff1Bo8K9CR7UIY5c6deA_v1TWwayF';
 const configured = Boolean(envUrl && envKey);
 const supabase = configured ? createClient(envUrl, envKey, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
