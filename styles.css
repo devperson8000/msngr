@@ -69,3 +69,70 @@ body[data-wallpaper="custom"] .message-scroller{background-image:linear-gradient
   .app-shell{grid-template-columns:62px 1fr}.workspace{position:absolute;left:62px;right:0;top:0;bottom:0;z-index:1}.side-panel{z-index:2}.chat-view:not(.hidden),.settings-view:not(.hidden){position:absolute;inset:0;z-index:5}.mobile-back{display:block}.member-pills{display:none}.settings-grid{grid-template-columns:1fr}.settings-card.wide{grid-column:auto}.wallpaper-options{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:520px){.rail{display:none}.app-shell{display:block}.side-panel{width:100vw}.workspace{left:0}.auth-card{padding:28px 21px}.accent-options{grid-template-columns:repeat(3,1fr)}}
+
+
+/* FINAL POLISH */
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button,.list-item,.rail-button,.wall,.accent-options button{transition:transform .16s ease,background .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease,opacity .16s ease}
+.primary-button:hover:not(:disabled),.square-button:hover,.mini-button:hover:not(:disabled){transform:translateY(-1px)}
+.primary-button:active:not(:disabled),.mini-button:active:not(:disabled){transform:translateY(0) scale(.985)}
+.side-panel,.workspace,.settings-view,.chat-view{animation:panelIn .22s ease both}
+@keyframes panelIn{from{opacity:.7;transform:translateY(4px)}to{opacity:1;transform:none}}
+@keyframes pulseSoft{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+.connection-state{width:34px;height:24px;margin-bottom:10px;display:grid;place-items:center;border-radius:9px;background:#0d1916}
+.connection-state i{width:7px;height:7px;border-radius:50%;background:#6c7e77;box-shadow:0 0 0 4px rgba(255,255,255,.025)}
+.connection-state.live i{background:#35d39f;box-shadow:0 0 0 4px rgba(53,211,159,.09)}
+.connection-state.connecting i{background:#d7ad55;animation:pulseSoft 1.1s infinite}
+.connection-state.offline i{background:#d76d6d}
+
+.list-skeleton{height:68px;margin:4px 2px;padding:10px;display:flex;gap:11px;align-items:center;border-radius:14px}
+.list-skeleton>i{width:42px;height:42px;border-radius:14px;flex:0 0 auto}
+.list-skeleton>span{flex:1;display:flex;flex-direction:column;gap:8px}
+.list-skeleton b{width:45%;height:9px;border-radius:6px}
+.list-skeleton em{width:72%;height:7px;border-radius:6px}
+.list-skeleton i,.list-skeleton b,.list-skeleton em{background:linear-gradient(90deg,#11211d 25%,#172b24 45%,#11211d 65%);background-size:220% 100%;animation:shimmer 1.4s linear infinite}
+
+.date-divider{display:flex;align-items:center;justify-content:center;margin:20px 0 14px}
+.date-divider:before,.date-divider:after{content:"";height:1px;flex:1;max-width:120px;background:rgba(91,111,103,.12)}
+.date-divider span{margin:0 10px;padding:5px 9px;border:1px solid rgba(91,111,103,.11);border-radius:999px;background:rgba(255,255,255,.66);backdrop-filter:blur(8px);color:#84918c;font-size:.55rem;font-weight:750}
+.message-sender{margin:0 0 4px;color:var(--accent-dark);font-size:.59rem;font-weight:850}
+.chat-empty{padding:70px 20px;text-align:center;color:#86938e}
+.chat-empty span{display:grid;place-items:center;width:42px;height:42px;margin:0 auto 12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 10%,white);color:var(--accent)}
+.chat-empty strong{display:block;color:#53615c;font-size:.78rem}
+.chat-empty p{margin:5px 0 0;font-size:.64rem}
+
+.group-select-meta{display:flex;align-items:center;justify-content:space-between;margin:5px 0 7px;color:#81908a;font-size:.63rem}
+.group-select-meta strong{color:var(--accent-dark);font-size:.6rem}
+.group-contact:hover{background:#f7faf8}
+.group-contact:has(input:checked){background:color-mix(in srgb,var(--accent) 8%,white)}
+.group-contact input{width:15px;height:15px}
+
+.conversation-item:hover{transform:translateX(2px)}
+.person-item:hover{background:#101f1b}
+.wall:hover,.accent-options button:hover{transform:translateY(-2px);box-shadow:0 8px 22px rgba(31,57,48,.08)}
+.settings-card{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.settings-card:hover{transform:translateY(-1px);border-color:color-mix(in srgb,var(--accent) 15%,#e0e7e4);box-shadow:0 14px 42px rgba(34,62,52,.07)}
+.composer:focus-within{border-color:color-mix(in srgb,var(--accent) 45%,#dce5e1);box-shadow:0 15px 42px rgba(30,58,48,.1),0 0 0 3px color-mix(in srgb,var(--accent) 7%,transparent)}
+.bubble{backdrop-filter:blur(8px)}
+
+.mobile-nav{display:none}
+@media(max-width:760px){
+  .app-shell[data-section="people"] .workspace{display:none}
+  .app-shell[data-section="settings"] .side-panel{display:none}
+  .app-shell[data-section="settings"] .workspace{left:62px}
+}
+@media(max-width:520px){
+  .app-shell{height:100dvh}
+  .side-panel{height:calc(100dvh - 64px);padding-bottom:0}
+  .workspace{bottom:64px;height:auto}
+  .app-shell[data-section="settings"] .workspace{left:0;bottom:64px}
+  .mobile-nav{position:fixed;z-index:30;left:0;right:0;bottom:0;height:64px;display:grid;grid-template-columns:repeat(3,1fr);padding:6px 10px max(6px,env(safe-area-inset-bottom));border-top:1px solid rgba(255,255,255,.05);background:rgba(8,17,15,.97);backdrop-filter:blur(18px)}
+  .mobile-nav button{position:relative;border:0;border-radius:11px;background:transparent;color:#64776f;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+  .mobile-nav button.active{color:var(--accent);background:#10201b}
+  .mobile-nav svg{width:19px;height:19px}.mobile-nav span{font-size:.55rem;font-weight:750}.mobile-nav em{position:absolute;top:2px;right:22%;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:#e66575;color:white;display:grid;place-items:center;font-style:normal;font-size:.5rem;font-weight:900}
+  .chat-header{padding:0 12px}.message-scroller{padding:20px 12px}.composer-shell{padding:8px 9px 11px}.bubble{max-width:86%}
+  .settings-view{padding:28px 16px}.profile-editor{flex-direction:column}.profile-fields{width:100%}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}}
