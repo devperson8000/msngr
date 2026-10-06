@@ -3,231 +3,194 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="theme-color" content="#07110f">
-  <meta name="description" content="msngr — fast, focused private conversations.">
+  <meta name="theme-color" content="#08110f">
+  <meta name="description" content="msngr — fast, focused conversations.">
   <title>msngr</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div id="configError" class="config-error hidden">
-    <strong>Backend setup required</strong>
-    <span>Supabase connection details are missing.</span>
-  </div>
+  <div id="configError" class="config-error hidden">Supabase connection is missing.</div>
 
-  <main id="authView" class="auth-layout">
-    <section class="auth-showcase">
-      <div class="showcase-orb orb-one"></div>
-      <div class="showcase-orb orb-two"></div>
-
-      <div class="showcase-top">
-        <div class="brand-lockup">
-          <div class="logo-mark" aria-hidden="true">
-            <span></span><span></span><span></span>
-          </div>
-          <strong>msngr</strong>
-        </div>
-        <div class="live-pill"><span></span> realtime</div>
+  <main id="authView" class="auth-shell">
+    <section class="auth-hero">
+      <div class="hero-grid"></div>
+      <div class="hero-top">
+        <div class="brand"><span class="brand-mark">m</span><strong>msngr</strong></div>
+        <span class="live-pill"><i></i> realtime</span>
       </div>
-
-      <div class="showcase-copy">
-        <p class="eyebrow light">QUIETLY BETTER MESSAGING</p>
-        <h1>Conversations<br>without the noise.</h1>
-        <p class="auth-lead">A focused place to talk. No feed, no clutter, no distractions — just fast conversations that stay out of your way.</p>
-
-        <div class="showcase-points">
-          <div class="showcase-point">
-            <span class="point-icon">01</span>
-            <div><strong>Fast by design</strong><p>Small message pages and realtime sync keep everything light.</p></div>
-          </div>
-          <div class="showcase-point">
-            <span class="point-icon">02</span>
-            <div><strong>Built for focus</strong><p>A desktop-first layout that keeps the conversation front and centre.</p></div>
-          </div>
-        </div>
+      <div class="hero-copy">
+        <p class="eyebrow">MESSAGING, WITHOUT THE NOISE</p>
+        <h1>Talk more.<br>Scroll less.</h1>
+        <p>Contacts, groups, realtime chat and personal customisation in one focused desktop space.</p>
       </div>
-
-      <div class="showcase-window" aria-hidden="true">
-        <div class="window-bar"><i></i><i></i><i></i><span>msngr / conversation</span></div>
-        <div class="window-body">
-          <div class="preview-sidebar">
-            <b></b><b></b><b></b><b></b>
-          </div>
-          <div class="preview-chat">
-            <span class="preview-bubble incoming"></span>
-            <span class="preview-bubble incoming short"></span>
-            <span class="preview-bubble outgoing"></span>
-            <span class="preview-bubble outgoing short"></span>
-          </div>
-        </div>
+      <div class="hero-preview">
+        <div class="preview-rail"></div>
+        <div class="preview-list"></div>
+        <div class="preview-chat"><b></b><b></b><b></b><b></b></div>
       </div>
     </section>
 
     <section class="auth-panel">
       <form id="authForm" class="auth-card">
-        <div class="auth-card-head">
-          <div class="mini-logo">m</div>
-          <div>
-            <p class="eyebrow">WELCOME TO MSNGR</p>
-            <h2 id="authTitle">Sign in</h2>
-          </div>
+        <div class="auth-heading">
+          <span class="brand-mark small">m</span>
+          <div><p class="eyebrow">WELCOME</p><h2 id="authTitle">Sign in</h2></div>
         </div>
-
-        <p class="auth-card-intro">Pick up where you left off and get straight back into your conversations.</p>
-
-        <label id="nameField" class="field hidden">
-          <span>Display name</span>
-          <input id="nameInput" maxlength="32" autocomplete="name" placeholder="How people will see you">
-        </label>
-
-        <label class="field">
-          <span>Email</span>
-          <input id="emailInput" type="email" autocomplete="email" required placeholder="you@example.com">
-        </label>
-
-        <label class="field">
-          <span>Password</span>
-          <input id="passwordInput" type="password" minlength="8" autocomplete="current-password" required placeholder="At least 8 characters">
-        </label>
-
-        <button id="authSubmit" class="primary-button auth-primary" type="submit">
-          <span>Sign in</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-
+        <p id="authIntro" class="auth-intro">Jump back into your conversations.</p>
+        <label id="nameField" class="field hidden"><span>Display name</span><input id="nameInput" maxlength="32" autocomplete="name" placeholder="Your name"></label>
+        <label class="field"><span>Email</span><input id="emailInput" type="email" autocomplete="email" required placeholder="you@example.com"></label>
+        <label class="field"><span>Password</span><input id="passwordInput" type="password" minlength="8" autocomplete="current-password" required placeholder="At least 8 characters"></label>
+        <button id="authSubmit" class="primary-button" type="submit"><span>Sign in</span><b>→</b></button>
         <p id="authMessage" class="form-message" aria-live="polite"></p>
-
-        <div class="auth-divider"><span></span><em>or</em><span></span></div>
-        <button id="authSwitch" class="text-button auth-switch" type="button">Need an account? Create one</button>
-
-        <p class="auth-footnote">Private by default. No marketing emails. No verification step.</p>
+        <button id="authSwitch" class="link-button" type="button">Need an account? Create one</button>
+        <p class="tiny-note">No email verification step.</p>
       </form>
     </section>
   </main>
 
-  <main id="appView" class="messenger hidden">
-    <aside class="sidebar">
-      <header class="sidebar-top">
-        <div class="brand-row">
-          <div class="mini-logo">m</div>
-          <div>
-            <strong>msngr</strong>
-            <span>Messages</span>
-          </div>
-        </div>
-        <button id="newChatButton" class="round-button" title="New chat" aria-label="New chat">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  <main id="appView" class="app-shell hidden">
+    <nav class="rail">
+      <div class="rail-brand">m</div>
+      <div class="rail-nav">
+        <button class="rail-button active" data-section="messages" title="Messages">
+          <svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 3V5Z"/></svg><span>Messages</span>
         </button>
+        <button class="rail-button" data-section="people" title="People">
+          <svg viewBox="0 0 24 24"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M17 8h4M19 6v4"/></svg><span>People</span>
+          <em id="requestBadge" class="rail-badge hidden">0</em>
+        </button>
+        <button class="rail-button" data-section="settings" title="Settings">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg><span>Settings</span>
+        </button>
+      </div>
+      <button id="railProfile" class="rail-profile" title="Profile"><span id="railAvatar">M</span></button>
+    </nav>
+
+    <aside class="side-panel">
+      <header class="side-header">
+        <div><p id="sideEyebrow" class="eyebrow">MSNGR</p><h2 id="sideTitle">Messages</h2></div>
+        <button id="sideAction" class="square-button" title="New group">+</button>
       </header>
 
-      <div class="search-shell">
-        <div class="search-box">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"></circle><path d="m16 16 4 4"></path></svg>
-          <input id="chatSearch" type="search" placeholder="Search conversations" autocomplete="off">
-          <kbd>⌘ K</kbd>
-        </div>
+      <div id="sideSearchWrap" class="side-search">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>
+        <input id="sideSearch" type="search" placeholder="Search conversations">
       </div>
 
-      <div class="list-heading">
-        <span>Recent</span>
-        <span id="conversationCount">0</span>
+      <div id="sideTabs" class="side-tabs hidden">
+        <button class="active" data-people-tab="people">People</button>
+        <button data-people-tab="requests">Requests <span id="requestCount">0</span></button>
+        <button data-people-tab="contacts">Contacts</button>
       </div>
 
-      <nav id="conversationList" class="conversation-list"></nav>
+      <div id="sideList" class="side-list"></div>
 
-      <footer class="me-card">
-        <div id="meAvatar" class="avatar me-avatar">M</div>
-        <div class="me-copy">
-          <strong id="meName">You</strong>
-          <span id="meEmail"></span>
-        </div>
-        <button id="profileButton" class="icon-button" title="Profile" aria-label="Profile">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1.5"/><circle cx="5" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
-        </button>
+      <footer class="account-card">
+        <div id="meAvatar" class="avatar">M</div>
+        <div class="account-copy"><strong id="meName">You</strong><span id="meEmail"></span></div>
+        <button id="accountMenu" class="icon-button">•••</button>
       </footer>
     </aside>
 
-    <section class="chat">
+    <section class="workspace">
       <div id="emptyState" class="empty-state">
-        <div class="empty-glow"></div>
-        <div class="empty-symbol">
-          <span>m</span>
-        </div>
+        <div class="empty-mark">m</div>
         <p class="eyebrow">YOUR SPACE</p>
-        <h2>Pick a conversation.</h2>
-        <p>Choose someone from the sidebar or start a new chat with their account email.</p>
-        <button id="emptyNewChat" class="primary-button compact">
-          Start a conversation
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
+        <h2>Choose a conversation.</h2>
+        <p>Message accepted contacts, or create a group from people you have connected with.</p>
+        <button id="emptyPeople" class="primary-button slim">Find people</button>
       </div>
 
       <div id="chatView" class="chat-view hidden">
         <header class="chat-header">
-          <button id="mobileBack" class="mobile-back" aria-label="Back">←</button>
-          <div id="chatAvatar" class="avatar">?</div>
-          <div class="chat-title">
-            <strong id="chatName">Conversation</strong>
-            <span id="chatStatus"><i></i> synced in realtime</span>
-          </div>
-          <div class="header-actions">
-            <div class="header-badge"><span class="status-dot"></span> live</div>
-          </div>
+          <button id="mobileBack" class="mobile-back">←</button>
+          <div id="chatAvatar" class="avatar large">?</div>
+          <div class="chat-title"><strong id="chatName">Conversation</strong><span id="chatSub">Realtime conversation</span></div>
+          <div id="memberPills" class="member-pills"></div>
         </header>
-
         <div id="messageScroller" class="message-scroller">
-          <button id="loadOlderButton" class="load-older hidden" type="button">Load older messages</button>
-          <div id="messages" class="messages" aria-live="polite"></div>
+          <button id="loadOlderButton" class="load-older hidden">Load older</button>
+          <div id="messages" class="messages"></div>
         </div>
-
-        <div class="composer-wrap">
+        <div class="composer-shell">
           <form id="composer" class="composer">
-            <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Write a message…" aria-label="Message"></textarea>
-            <div class="composer-hint">↵</div>
-            <button id="sendButton" type="submit" aria-label="Send">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 5 14 7-14 7 2.5-7L5 5Z"/><path d="M8 12h11"/></svg>
-            </button>
+            <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Write a message…"></textarea>
+            <span class="composer-count"><b id="charCount">0</b>/4000</span>
+            <button id="sendButton" type="submit"><svg viewBox="0 0 24 24"><path d="m5 5 14 7-14 7 2.5-7L5 5Z"/><path d="M8 12h11"/></svg></button>
           </form>
+        </div>
+      </div>
+
+      <div id="settingsView" class="settings-view hidden">
+        <header class="settings-header"><p class="eyebrow">PERSONALISE</p><h1>Settings</h1><p>Make msngr feel like yours.</p></header>
+        <div class="settings-grid">
+          <section class="settings-card profile-settings">
+            <div class="settings-card-head"><div><h3>Profile</h3><p>Your public identity inside msngr.</p></div></div>
+            <div class="profile-editor">
+              <button id="avatarPicker" class="avatar-picker"><span id="settingsAvatar">M</span><em>Change</em></button>
+              <input id="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+              <div class="profile-fields">
+                <label class="field"><span>Display name</span><input id="settingsName" maxlength="32"></label>
+                <label class="field"><span>About</span><input id="settingsAbout" maxlength="120" placeholder="A short status"></label>
+              </div>
+            </div>
+            <p class="limit-note">Profile photos: JPG, PNG or WebP, maximum 1 MB.</p>
+            <button id="saveProfileSettings" class="primary-button slim">Save profile</button>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card-head"><div><h3>Accent</h3><p>Choose the highlight colour for your app.</p></div></div>
+            <div id="accentOptions" class="accent-options">
+              <button data-accent="emerald" class="active"><i></i>Emerald</button>
+              <button data-accent="blue"><i></i>Blue</button>
+              <button data-accent="violet"><i></i>Violet</button>
+              <button data-accent="amber"><i></i>Amber</button>
+              <button data-accent="rose"><i></i>Rose</button>
+            </div>
+          </section>
+
+          <section class="settings-card wide">
+            <div class="settings-card-head"><div><h3>Chat background</h3><p>This only changes how chats look on your side.</p></div></div>
+            <div id="wallpaperOptions" class="wallpaper-options">
+              <button data-wallpaper="mist" class="wall mist active"><span>Mist</span></button>
+              <button data-wallpaper="paper" class="wall paper"><span>Paper</span></button>
+              <button data-wallpaper="dots" class="wall dots"><span>Dots</span></button>
+              <button data-wallpaper="midnight" class="wall midnight"><span>Midnight</span></button>
+              <button id="backgroundPicker" class="wall custom"><span>Upload image</span></button>
+            </div>
+            <input id="backgroundInput" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            <p class="limit-note">Custom backgrounds: JPG, PNG or WebP, maximum 3 MB.</p>
+          </section>
+
+          <section class="settings-card">
+            <div class="settings-card-head"><div><h3>Chat behaviour</h3><p>Small controls for how you message.</p></div></div>
+            <label class="toggle-row"><span><strong>Enter to send</strong><small>Press Enter to send, Shift+Enter for a new line.</small></span><input id="enterToSend" type="checkbox" checked><i></i></label>
+            <label class="toggle-row"><span><strong>Compact chats</strong><small>Tighten message spacing and conversation rows.</small></span><input id="compactMode" type="checkbox"><i></i></label>
+          </section>
+
+          <section class="settings-card danger-card">
+            <div class="settings-card-head"><div><h3>Session</h3><p>Sign out of msngr on this device.</p></div></div>
+            <button id="signOutButton" class="danger-button">Sign out</button>
+          </section>
         </div>
       </div>
     </section>
   </main>
 
   <div id="modalBackdrop" class="modal-backdrop hidden">
-    <section id="newChatModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="newChatTitle">
-      <button class="modal-close" data-close-modal aria-label="Close">×</button>
-      <div class="modal-icon">+</div>
-      <p class="eyebrow">NEW CONVERSATION</p>
-      <h2 id="newChatTitle">Message someone</h2>
-      <p>Enter the exact email attached to their msngr account.</p>
-      <form id="newChatForm">
-        <label class="field">
-          <span>Email</span>
-          <input id="newChatEmail" type="email" required autocomplete="off" placeholder="friend@example.com">
-        </label>
-        <p id="newChatMessage" class="form-message"></p>
-        <button class="primary-button" type="submit">Start chat</button>
+    <section id="groupModal" class="modal hidden">
+      <button class="modal-close" data-close-modal>×</button>
+      <p class="eyebrow">NEW GROUP</p><h2>Create a group</h2><p>Select accepted contacts. Maximum 21 people including you.</p>
+      <form id="groupForm">
+        <label class="field"><span>Group name</span><input id="groupName" maxlength="60" required placeholder="Weekend plans"></label>
+        <div id="groupContacts" class="group-contacts"></div>
+        <p id="groupMessage" class="form-message"></p>
+        <button class="primary-button" type="submit">Create group</button>
       </form>
-    </section>
-
-    <section id="profileModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
-      <button class="modal-close" data-close-modal aria-label="Close">×</button>
-      <div class="modal-icon">m</div>
-      <p class="eyebrow">YOUR PROFILE</p>
-      <h2 id="profileTitle">Profile</h2>
-      <p>Your name is shown to people you message. Your email is used to find your account.</p>
-      <form id="profileForm">
-        <label class="field">
-          <span>Display name</span>
-          <input id="profileName" maxlength="32" required autocomplete="name">
-        </label>
-        <button class="primary-button" type="submit">Save changes</button>
-      </form>
-      <div class="modal-rule"></div>
-      <button id="signOutButton" class="danger-button" type="button">Sign out</button>
     </section>
   </div>
 
-  <div id="toast" class="toast hidden" role="status"></div>
+  <div id="toast" class="toast hidden"></div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>
