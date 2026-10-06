@@ -45,6 +45,9 @@ create index if not exists messages_conversation_created_idx
 create index if not exists messages_sender_created_idx
   on public.messages(sender_id, created_at desc);
 
+create index if not exists conversations_created_by_idx
+  on public.conversations(created_by);
+
 alter table public.profiles enable row level security;
 alter table public.conversations enable row level security;
 alter table public.conversation_members enable row level security;
@@ -102,7 +105,7 @@ on public.profiles for insert
 to authenticated
 with check (
   id = (select auth.uid())
-  and lower(email::text) = lower((select auth.jwt() ->> 'email'))
+  and lower(email::text) = lower(((select auth.jwt()) ->> 'email'))
 );
 
 drop policy if exists "profiles_update_self" on public.profiles;
@@ -112,7 +115,7 @@ to authenticated
 using (id = (select auth.uid()))
 with check (
   id = (select auth.uid())
-  and lower(email::text) = lower((select auth.jwt() ->> 'email'))
+  and lower(email::text) = lower(((select auth.jwt()) ->> 'email'))
 );
 
 drop policy if exists "conversations_select_member" on public.conversations;
