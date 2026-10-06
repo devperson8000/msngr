@@ -2,263 +2,164 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0b0e14">
-  <meta name="description" content="A private peer-to-peer messenger for text, audio, and video calls.">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0b141a">
+  <meta name="description" content="msngr — a clean desktop messenger powered by Supabase.">
   <title>msngr</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%237c5cff'/%3E%3Cpath d='M16 20c0-4 3-7 7-7h18c4 0 7 3 7 7v14c0 4-3 7-7 7H30L19 50v-9c-2-1-3-4-3-7V20Z' fill='white'/%3E%3Ccircle cx='25' cy='28' r='3' fill='%237c5cff'/%3E%3Ccircle cx='32' cy='28' r='3' fill='%237c5cff'/%3E%3Ccircle cx='39' cy='28' r='3' fill='%237c5cff'/%3E%3C/svg%3E">
-  <link rel="preconnect" href="https://esm.run">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
+  <div id="configError" class="config-error hidden">
+    <strong>Backend setup required</strong>
+    <span>Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in Vercel.</span>
+  </div>
 
-  <main class="app-shell" id="appShell">
-    <aside class="rail" aria-label="Rooms">
-      <button class="brand" id="brandButton" aria-label="msngr home">
-        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M8 13.5A7.5 7.5 0 0 1 15.5 6h17A7.5 7.5 0 0 1 40 13.5v13a7.5 7.5 0 0 1-7.5 7.5H22l-10 8v-8.9A7.5 7.5 0 0 1 8 26.5v-13Z"/><circle cx="18" cy="20" r="2.3"/><circle cx="24" cy="20" r="2.3"/><circle cx="30" cy="20" r="2.3"/></svg>
-      </button>
-      <div class="rail-divider"></div>
-      <div class="room-stack" id="roomStack"></div>
-      <button class="rail-action" id="newRoomRail" aria-label="Create or join room" title="Create or join room">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-      </button>
-      <button class="rail-action" id="testTabButton" aria-label="Open test client" title="Open a second test client">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="12" height="12" rx="2"/><path d="M8 20h10a2 2 0 0 0 2-2V8"/></svg>
-      </button>
-    </aside>
+  <main id="authView" class="auth-layout">
+    <section class="auth-brand">
+      <div class="logo-mark" aria-hidden="true"><span></span><span></span></div>
+      <div>
+        <p class="eyebrow">DESKTOP MESSENGER</p>
+        <h1>msngr<span>.</span></h1>
+        <p class="auth-lead">Simple conversations, fast sync, and a clean interface with no feed, ads, or clutter.</p>
+      </div>
+      <div class="auth-feature">
+        <span class="status-dot"></span>
+        <p><strong>Built to stay light.</strong><br>Messages load in small pages and sync through one realtime connection.</p>
+      </div>
+    </section>
 
-    <aside class="sidebar">
-      <header class="sidebar-head">
-        <div>
-          <span class="eyebrow">PRIVATE MESSENGER</span>
-          <h1>msngr<span class="brand-dot">.</span></h1>
+    <section class="auth-card-wrap">
+      <form id="authForm" class="auth-card">
+        <div class="auth-card-head">
+          <div class="mini-logo">m</div>
+          <div>
+            <p class="eyebrow">WELCOME TO MSNGR</p>
+            <h2 id="authTitle">Sign in</h2>
+          </div>
         </div>
-        <button class="icon-button" id="profileButton" aria-label="Edit profile" title="Edit profile">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
-        </button>
+
+        <label id="nameField" class="field hidden">
+          <span>Display name</span>
+          <input id="nameInput" maxlength="32" autocomplete="name" placeholder="Your name">
+        </label>
+        <label class="field">
+          <span>Email</span>
+          <input id="emailInput" type="email" autocomplete="email" required placeholder="you@example.com">
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input id="passwordInput" type="password" minlength="8" autocomplete="current-password" required placeholder="At least 8 characters">
+        </label>
+
+        <button id="authSubmit" class="primary-button" type="submit">Sign in</button>
+        <p id="authMessage" class="form-message" aria-live="polite"></p>
+        <button id="authSwitch" class="text-button" type="button">Need an account? Create one</button>
+      </form>
+    </section>
+  </main>
+
+  <main id="appView" class="messenger hidden">
+    <aside class="sidebar">
+      <header class="sidebar-top">
+        <div class="brand-row">
+          <div class="mini-logo">m</div>
+          <div>
+            <strong>msngr</strong>
+            <span>Messages</span>
+          </div>
+        </div>
+        <button id="newChatButton" class="round-button" title="New chat" aria-label="New chat">+</button>
       </header>
 
-      <div class="sidebar-actions">
-        <button class="primary-action" id="createRoomButton">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          New room
-        </button>
-        <button class="secondary-action" id="joinRoomButton">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5l7 7-7 7M21 12H9M9 5H4v14h5"/></svg>
-          Join
-        </button>
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4.5-4.5"></path></svg>
+        <input id="chatSearch" type="search" placeholder="Search conversations" autocomplete="off">
       </div>
 
-      <div class="search-wrap">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-        <input id="roomSearch" type="search" placeholder="Search rooms" autocomplete="off">
-        <kbd>⌘K</kbd>
+      <div class="list-heading">
+        <span>Conversations</span>
+        <span id="conversationCount">0</span>
       </div>
+      <nav id="conversationList" class="conversation-list"></nav>
 
-      <div class="section-label"><span>RECENT ROOMS</span><span id="roomCount">0</span></div>
-      <nav class="room-list" id="roomList" aria-label="Recent rooms"></nav>
-
-      <footer class="user-card">
-        <div class="avatar avatar-self" id="selfAvatar">M</div>
-        <div class="user-copy">
-          <strong id="selfName">Me</strong>
-          <span><i></i> Ready</span>
+      <footer class="me-card">
+        <div id="meAvatar" class="avatar">M</div>
+        <div class="me-copy">
+          <strong id="meName">You</strong>
+          <span id="meEmail"></span>
         </div>
-        <button class="icon-button" id="settingsButton" aria-label="Settings" title="Settings">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21H9.6v-.1A1.7 1.7 0 0 0 8.5 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3V9.6h.1A1.7 1.7 0 0 0 4.6 8.5a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.1A1.7 1.7 0 0 0 15.5 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.13.38.35.72.64 1 .3.28.67.42 1.06.4h.1v4h-.1A1.7 1.7 0 0 0 19.4 15Z"/></svg>
-        </button>
+        <button id="profileButton" class="icon-button" title="Profile" aria-label="Profile">•••</button>
       </footer>
     </aside>
 
-    <section class="chat-panel">
-      <div class="empty-state" id="emptyState">
-        <div class="empty-logo"><span></span><span></span><span></span></div>
-        <h2>Your conversations, directly connected.</h2>
-        <p>Create a room and send its link. Messages and calls travel peer-to-peer.</p>
-        <div class="empty-actions">
-          <button class="primary-action large" id="emptyCreate">Create a room</button>
-          <button class="secondary-action large" id="emptyJoin">Join with code</button>
-        </div>
-        <div class="privacy-note">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-          End-to-end encrypted by WebRTC
-        </div>
+    <section class="chat">
+      <div id="emptyState" class="empty-state">
+        <div class="empty-symbol">m</div>
+        <h2>Start a conversation</h2>
+        <p>Choose a chat on the left or start one using someone’s account email.</p>
+        <button id="emptyNewChat" class="primary-button compact">New chat</button>
       </div>
 
-      <div class="chat-view hidden" id="chatView">
-        <header class="chat-head">
-          <button class="mobile-back icon-button" id="mobileBack" aria-label="Back to rooms">
-            <svg viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
-          </button>
-          <div class="avatar" id="roomAvatar">R</div>
+      <div id="chatView" class="chat-view hidden">
+        <header class="chat-header">
+          <button id="mobileBack" class="mobile-back" aria-label="Back">←</button>
+          <div id="chatAvatar" class="avatar">?</div>
           <div class="chat-title">
-            <div><h2 id="roomTitle">Room</h2><button id="renameRoomButton" aria-label="Rename room"><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.8 2.8 0 0 0-4-4l-10 10L4 20Z"/></svg></button></div>
-            <span id="connectionStatus"><i></i> Waiting for someone to join</span>
+            <strong id="chatName">Conversation</strong>
+            <span id="chatStatus">Messages are synced securely to your account</span>
           </div>
-          <div class="head-actions">
-            <button class="call-button" id="audioCallButton" aria-label="Start audio call" title="Audio call">
-              <svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 5.2 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.7c.12.9.34 1.77.65 2.6a2 2 0 0 1-.45 2.1L9 10.6a16 16 0 0 0 4.4 4.4l1.2-1.2a2 2 0 0 1 2.1-.45c.83.31 1.7.53 2.6.65a2 2 0 0 1 1.7 2Z"/></svg>
-            </button>
-            <button class="call-button" id="videoCallButton" aria-label="Start video call" title="Video call">
-              <svg viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14" rx="3"/><path d="m17 10 4-3v10l-4-3"/></svg>
-            </button>
-            <button class="icon-button" id="shareRoomButton" aria-label="Share invite" title="Share invite">
-              <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>
-            </button>
-            <button class="icon-button" id="roomMenuButton" aria-label="Room options" title="Room options">
-              <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
-            </button>
-          </div>
+          <div class="header-badge"><span class="status-dot"></span> synced</div>
         </header>
 
-        <div class="connection-banner hidden" id="connectionBanner">
-          <span class="loader"></span><span id="bannerText">Connecting to the room…</span>
+        <div id="messageScroller" class="message-scroller">
+          <button id="loadOlderButton" class="load-older hidden" type="button">Load older messages</button>
+          <div id="messages" class="messages" aria-live="polite"></div>
         </div>
 
-        <div class="messages" id="messages" aria-live="polite"></div>
-
-        <div class="typing-row" id="typingRow"><span></span><span></span><span></span><b>Someone is typing</b></div>
-        <form class="composer" id="composer">
-          <button type="button" class="composer-icon" id="attachmentButton" aria-label="Send image or video" title="Send image or video">
-            <svg viewBox="0 0 24 24"><path d="m20.5 11.5-8.9 8.9a6 6 0 0 1-8.5-8.5l9.6-9.6a4 4 0 0 1 5.7 5.7l-9.7 9.7a2 2 0 0 1-2.8-2.8l8.9-8.9"/></svg>
-          </button>
-          <input class="visually-hidden" id="attachmentInput" type="file" accept="image/*,video/*">
-          <button type="button" class="composer-icon" id="emojiButton" aria-label="Add emoji">
-            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/><path d="M8 14c1.4 2 6.6 2 8 0"/></svg>
-          </button>
-          <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Message room" aria-label="Message"></textarea>
-          <span class="char-count" id="charCount"></span>
-          <button type="submit" class="send-button" id="sendButton" aria-label="Send message">
-            <svg viewBox="0 0 24 24"><path d="m3 11 18-8-8 18-2-8-8-2Z"/><path d="m11 13 5-5"/></svg>
+        <form id="composer" class="composer">
+          <textarea id="messageInput" rows="1" maxlength="4000" placeholder="Type a message" aria-label="Message"></textarea>
+          <button id="sendButton" type="submit" aria-label="Send">
+            <svg viewBox="0 0 24 24"><path d="m4 4 16 8-16 8 3-8-3-8Z"></path><path d="M7 12h13"></path></svg>
           </button>
         </form>
       </div>
     </section>
   </main>
 
-  <section class="call-overlay hidden" id="callOverlay" aria-label="Active call">
-    <div class="call-top">
-      <div class="call-person"><span class="live-dot"></span><div><strong id="callTitle">Connected</strong><span id="callTimer">00:00</span></div></div>
-      <button class="call-close" id="minimizeCall" aria-label="Minimize call"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-    </div>
-    <div class="video-stage">
-      <div class="remote-placeholder" id="remotePlaceholder"><div class="avatar call-avatar" id="callAvatar">R</div><strong id="remoteName">Room peer</strong><span>Connecting media…</span></div>
-      <video id="remoteVideo" autoplay playsinline></video>
-      <video id="localVideo" autoplay muted playsinline></video>
-    </div>
-    <div class="call-controls">
-      <button id="muteButton" aria-label="Mute microphone"><svg viewBox="0 0 24 24"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg><span>Mute</span></button>
-      <button id="cameraButton" aria-label="Turn camera off"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="14" height="14" rx="3"/><path d="m17 10 4-3v10l-4-3"/></svg><span>Camera</span></button>
-      <button id="shareScreenButton" aria-label="Share screen"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 10l3-3 3 3M12 7v7"/></svg><span>Share</span></button>
-      <button class="danger" id="endCallButton" aria-label="End call"><svg viewBox="0 0 24 24"><path d="M4 15c5-4 11-4 16 0M6 13l-2 4M18 13l2 4"/></svg><span>End</span></button>
-    </div>
-  </section>
-
-  <div class="modal-backdrop hidden" id="modalBackdrop">
-    <section class="modal" id="roomModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-      <button class="modal-close" id="modalClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
-      <div class="modal-icon" id="modalIcon"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></div>
-      <span class="eyebrow">DIRECT CONNECTION</span>
-      <h2 id="modalTitle">Start a room</h2>
-      <p id="modalDescription">Create a private space, then share one link with the person you want to reach.</p>
-      <label class="field" id="nameField"><span>Room name</span><input id="roomNameInput" maxlength="40" placeholder="e.g. Mitch & Alex"></label>
-      <label class="field hidden" id="codeField"><span>Invite code or link</span><input id="roomCodeInput" autocomplete="off" spellcheck="false" placeholder="Paste a link or code"></label>
-      <button class="modal-submit" id="modalSubmit">Create and open room <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-      <div class="modal-foot"><svg viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="10" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg> No account or central message server</div>
+  <div id="modalBackdrop" class="modal-backdrop hidden">
+    <section id="newChatModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="newChatTitle">
+      <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      <p class="eyebrow">NEW CONVERSATION</p>
+      <h2 id="newChatTitle">Message someone</h2>
+      <p>Enter the exact email they used for their msngr account.</p>
+      <form id="newChatForm">
+        <label class="field">
+          <span>Email</span>
+          <input id="newChatEmail" type="email" required autocomplete="off" placeholder="friend@example.com">
+        </label>
+        <p id="newChatMessage" class="form-message"></p>
+        <button class="primary-button" type="submit">Start chat</button>
+      </form>
     </section>
 
-    <section class="modal invite-modal hidden" id="inviteModal" role="dialog" aria-modal="true" aria-labelledby="inviteTitle">
-      <button class="modal-close" id="inviteClose" aria-label="Close"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
-      <div class="modal-icon"><svg viewBox="0 0 24 24"><path d="M15 8a5 5 0 0 1 0 8M18 5a9 9 0 0 1 0 14M10 12H3M7 8l-4 4 4 4"/></svg></div>
-      <span class="eyebrow">ROOM READY</span>
-      <h2 id="inviteTitle">Invite someone</h2>
-      <p>Send this link. When they open it, they’ll join this room automatically.</p>
-      <div class="invite-box"><input id="inviteLink" readonly><button id="copyInviteButton">Copy</button></div>
-      <div class="code-display"><span>ROOM CODE</span><strong id="inviteCode">—</strong></div>
-      <button class="modal-submit" id="openRoomButton">Open room <svg viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
-    </section>
-
-    <section class="modal incoming-modal hidden" id="incomingModal" role="dialog" aria-modal="true" aria-labelledby="incomingTitle">
-      <div class="ring-avatar"><div class="avatar" id="incomingAvatar">R</div><span></span></div>
-      <span class="eyebrow">INCOMING CALL</span>
-      <h2 id="incomingTitle">Room peer</h2>
-      <p id="incomingType">Video call</p>
-      <div class="incoming-actions">
-        <button class="decline" id="declineCall"><svg viewBox="0 0 24 24"><path d="M4 15c5-4 11-4 16 0M6 13l-2 4M18 13l2 4"/></svg><span>Decline</span></button>
-        <button class="accept" id="acceptCall"><svg viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 3 5.2 2 2 0 0 1 5 3h3a2 2 0 0 1 2 1.7c.12.9.34 1.77.65 2.6a2 2 0 0 1-.45 2.1L9 10.6a16 16 0 0 0 4.4 4.4l1.2-1.2a2 2 0 0 1 2.1-.45c.83.31 1.7.53 2.6.65a2 2 0 0 1 1.7 2Z"/></svg><span>Accept</span></button>
-      </div>
-    </section>
-
-    <section class="modal settings-modal hidden" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
-      <button class="modal-close" id="settingsClose" aria-label="Close settings"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button>
-      <span class="eyebrow">PERSONALIZE</span>
-      <h2 id="settingsTitle">Settings</h2>
-
-      <div class="settings-scroll">
-        <section class="settings-section">
-          <div class="settings-heading"><strong>Profile</strong><span>Visible to connected peers</span></div>
-          <div class="profile-editor">
-            <div class="avatar settings-avatar" id="settingsAvatarPreview">M</div>
-            <div class="profile-fields">
-              <label class="field compact-field"><span>Display name</span><input id="settingsNameInput" maxlength="28" autocomplete="nickname"></label>
-              <div class="inline-actions">
-                <button class="settings-action" id="changeAvatarButton" type="button">Choose photo</button>
-                <button class="settings-action subtle-action" id="removeAvatarButton" type="button">Remove</button>
-              </div>
-              <input class="visually-hidden" id="avatarFileInput" type="file" accept="image/*">
-            </div>
-          </div>
-        </section>
-
-        <section class="settings-section">
-          <div class="settings-heading"><strong>Appearance</strong><span>Only changes on this device</span></div>
-          <div class="setting-row setting-column">
-            <div><strong>Accent colour</strong><span>Choose the colour used for buttons and your messages</span></div>
-            <div class="accent-options" id="accentOptions" aria-label="Accent colour">
-              <button type="button" data-accent="purple" style="--swatch:#7c5cff" aria-label="Purple"></button>
-              <button type="button" data-accent="blue" style="--swatch:#2d8cff" aria-label="Blue"></button>
-              <button type="button" data-accent="green" style="--swatch:#14b88a" aria-label="Green"></button>
-              <button type="button" data-accent="rose" style="--swatch:#e85d8e" aria-label="Rose"></button>
-            </div>
-          </div>
-          <div class="setting-row">
-            <div><strong>Chat background</strong><span>Use an image from this device</span></div>
-            <div class="inline-actions">
-              <button class="settings-action" id="changeWallpaperButton" type="button">Choose</button>
-              <button class="settings-action subtle-action" id="removeWallpaperButton" type="button">Clear</button>
-            </div>
-            <input class="visually-hidden" id="wallpaperFileInput" type="file" accept="image/*">
-          </div>
-          <label class="setting-row setting-slider"><div><strong>Background visibility</strong><span>Keep messages easy to read</span></div><input id="wallpaperVisibility" type="range" min="12" max="58" value="30"><output id="wallpaperVisibilityValue">30%</output></label>
-          <label class="setting-row"><div><strong>Message spacing</strong><span>Control chat density</span></div><select id="densitySelect"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></label>
-          <label class="setting-row setting-slider"><div><strong>Interface size</strong><span>Scale text and controls</span></div><input id="fontScale" type="range" min="90" max="110" step="5" value="100"><output id="fontScaleValue">100%</output></label>
-        </section>
-
-        <section class="settings-section">
-          <div class="settings-heading"><strong>Chat</strong><span>Behaviour and feedback</span></div>
-          <label class="setting-row"><div><strong>Enter to send</strong><span>Use Shift + Enter for a new line</span></div><input class="switch" id="enterToSendToggle" type="checkbox" checked></label>
-          <label class="setting-row"><div><strong>Notification sounds</strong><span>Play a soft tone for messages and calls</span></div><input class="switch" id="soundsToggle" type="checkbox" checked></label>
-          <label class="setting-row"><div><strong>Reduce motion</strong><span>Turn off interface animations</span></div><input class="switch" id="motionToggle" type="checkbox"></label>
-        </section>
-      </div>
-
-      <button class="modal-submit settings-save" id="settingsSaveButton">Save settings <svg viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></svg></button>
+    <section id="profileModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+      <button class="modal-close" data-close-modal aria-label="Close">×</button>
+      <p class="eyebrow">YOUR PROFILE</p>
+      <h2 id="profileTitle">Profile</h2>
+      <p>Your name is shown to people you message. Your email is used to find your account.</p>
+      <form id="profileForm">
+        <label class="field">
+          <span>Display name</span>
+          <input id="profileName" maxlength="32" required autocomplete="name">
+        </label>
+        <button class="primary-button" type="submit">Save profile</button>
+      </form>
+      <div class="modal-rule"></div>
+      <button id="signOutButton" class="danger-button" type="button">Sign out</button>
     </section>
   </div>
 
-  <div class="context-menu hidden" id="roomMenu">
-    <button id="menuShare"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>Share invite</button>
-    <button id="menuRename"><svg viewBox="0 0 24 24"><path d="m14 5 5 5M4 20l4.5-1 10-10a2.8 2.8 0 0 0-4-4l-10 10L4 20Z"/></svg>Rename room</button>
-    <button id="menuClear"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 11v6M15 11v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>Clear messages</button>
-    <div></div>
-    <button class="danger-text" id="menuForget"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 11v6M15 11v6M6 7l1 14h10l1-14M9 7V4h6v3"/></svg>Forget room</button>
-  </div>
-
-  <div class="emoji-picker hidden" id="emojiPicker" aria-label="Emoji picker"></div>
-  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
-
-  <script type="module" src="./app.js"></script>
+  <div id="toast" class="toast hidden" role="status"></div>
+  <script type="module" src="/app.js"></script>
 </body>
 </html>
