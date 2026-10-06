@@ -2,13 +2,15 @@ import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
+  if (req.method !== 'POST' && req.method !== 'GET') {
+    res.setHeader('Allow', 'POST, GET');
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+    const email = req.method === 'GET'
+      ? (typeof req.query?.email === 'string' ? req.query.email.trim() : '')
+      : (typeof req.body?.email === 'string' ? req.body.email.trim() : '');
 
     if (!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
       return res.status(400).json({ error: 'A valid email address is required.' });
