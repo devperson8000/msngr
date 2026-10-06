@@ -470,6 +470,7 @@ async function loadMembers(id) {
   (data||[]).slice(0,4).forEach(m=>root.appendChild(createAvatar(m.display_name,m.avatar_url,'member-avatar')));
   const current=state.conversations.find(x=>x.id===id);
   $('chatSub').textContent=current?.kind==='group' ? (current.memberCount+' members') : 'Connected contact';
+  if(state.activeId===id) renderMessages();
 }
 
 function scheduleRead(id) {
