@@ -26,7 +26,10 @@ const state = {
   realtime: null,
   readTimer: null,
   inboxTimer: null,
-  peopleTimer: null
+  peopleTimer: null,
+  members: new Map(),
+  connectionStatus: 'connecting',
+  heartbeat: null
 };
 
 const ACCENTS = {
@@ -52,9 +55,55 @@ function timeLabel(value) {
 function presenceLabel(value) {
   if (!value) return '';
   const ms = Date.now() - new Date(value).getTime();
-  if (ms < 5 * 60 * 1000) return 'online recently';
+  if (ms < 5 * 60 * 1000) return 'active recently';
   if (ms < 60 * 60 * 1000) return Math.max(1, Math.round(ms / 60000)) + 'm ago';
   return timeLabel(value);
+}
+
+function dayKey(value) {
+  const d = new Date(value);
+  return d.getFullYear() + '-' + d.getMonth() + '-' + d.getDate();
+}
+
+function dayLabel(value) {
+  const d = new Date(value);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString([], { weekday:'short', day:'numeric', month:'short' });
+}
+
+function currentConversation() {
+  return state.conversations.find(x => x.id === state.activeId) || null;
+}
+
+function updateUnreadTitle() {
+  const total = state.conversations.reduce((sum,x) => sum + Number(x.unread || 0), 0);
+  document.title = total ? '(' + Math.min(total,99) + ') msngr' : 'msngr';
+}
+
+function setConnectionState(status) {
+  state.connectionStatus = status;
+  const el = $('connectionState');
+  if (!el) return;
+  const live = status === 'live';
+  const offline = status === 'offline' || !navigator.onLine;
+  el.className = 'connection-state ' + (live ? 'live' : offline ? 'offline' : 'connecting');
+  el.title = live ? 'Realtime connected' : offline ? 'Offline' : 'Connecting';
+}
+
+function renderSkeletons(count=5) {
+  const root = $('sideList');
+  if (!root) return;
+  root.replaceChildren();
+  for (let i=0;i<count;i++) {
+    const row=document.createElement('div');
+    row.className='list-skeleton';
+    row.innerHTML='<i></i><span><b></b><em></em></span>';
+    root.appendChild(row);
+  }
 }
 
 function showToast(message) {
@@ -169,6 +218,7 @@ async function loadInbox() {
     unread:Number(x.unread_count || 0),
     memberCount:Number(x.member_count || 0)
   }));
+  updateUnreadTitle();
   if (state.section === 'messages') renderSideList();
 }
 
@@ -187,6 +237,8 @@ async function loadRequests() {
   $('requestCount').textContent = String(incoming);
   $('requestBadge').textContent = String(incoming);
   $('requestBadge').classList.toggle('hidden', incoming === 0);
+  $('mobileRequestBadge').textContent = String(incoming);
+  $('mobileRequestBadge').classList.toggle('hidden', incoming === 0);
   if (state.section === 'people' && state.peopleTab === 'requests') renderSideList();
 }
 
@@ -302,8 +354,12 @@ function syncPeopleTabs() {
 }
 
 function setSection(section) {
+  const previous = state.section;
   state.section=section;
+  $('appView').dataset.section = section;
+  if (previous !== section && $('sideSearch')) $('sideSearch').value = '';
   document.querySelectorAll('.rail-button').forEach(b=>b.classList.toggle('active',b.dataset.section===section));
+  document.querySelectorAll('[data-mobile-section]').forEach(b=>b.classList.toggle('active',b.dataset.mobileSection===section));
   $('settingsView').classList.toggle('hidden',section!=='settings');
   $('chatView').classList.toggle('hidden',section==='settings' || !state.activeId);
   $('emptyState').classList.toggle('hidden',section==='settings' || Boolean(state.activeId));
@@ -317,7 +373,8 @@ function setSection(section) {
   } else if (section==='people') {
     $('sideEyebrow').textContent='SOCIAL'; $('sideTitle').textContent='People'; $('sideSearch').placeholder='Search people by name';
     $('sideAction').title='New group'; $('sideAction').textContent='+';
-    refreshSocial().catch(e=>showToast(e.message));
+    renderSkeletons(5);
+    refreshSocial().catch(e=>{ showToast(e.message); renderSideList(); });
   } else {
     $('sideEyebrow').textContent='YOU'; $('sideTitle').textContent='Settings';
     $('sideList').replaceChildren();
@@ -344,10 +401,44 @@ async function startDirect(userId) {
 function renderMessages() {
   const root=$('messages'); root.replaceChildren();
   const list=state.messages.get(state.activeId)||[];
+  const conversation=currentConversation();
+  const members=state.members.get(state.activeId)||[];
+  const memberMap=new Map(members.map(m=>[m.user_id,m]));
   let previousSender=null;
+  let previousDay=null;
+
+  if (!list.length) {
+    const empty=document.createElement('div');
+    empty.className='chat-empty';
+    empty.innerHTML='<span>✦</span><strong>No messages yet</strong><p>Say hello and start the conversation.</p>';
+    root.appendChild(empty);
+    return;
+  }
+
   list.forEach(m=>{
-    const row=document.createElement('div'); row.className='message-row'+(m.sender_id===state.user.id?' mine':'');
+    const messageDay=dayKey(m.created_at);
+    if(messageDay!==previousDay){
+      const divider=document.createElement('div');
+      divider.className='date-divider';
+      const label=document.createElement('span');
+      label.textContent=dayLabel(m.created_at);
+      divider.appendChild(label);
+      root.appendChild(divider);
+      previousDay=messageDay;
+      previousSender=null;
+    }
+
+    const mine=m.sender_id===state.user.id;
+    const row=document.createElement('div'); row.className='message-row'+(mine?' mine':'');
     const bubble=document.createElement('div'); bubble.className='bubble';
+
+    if(conversation?.kind==='group'&&!mine&&previousSender!==m.sender_id){
+      const sender=document.createElement('div');
+      sender.className='message-sender';
+      sender.textContent=memberMap.get(m.sender_id)?.display_name || 'Member';
+      bubble.appendChild(sender);
+    }
+
     const body=document.createElement('div'); body.className='message-body'; body.textContent=m.body;
     const meta=document.createElement('div'); meta.className='bubble-meta'; meta.textContent=timeLabel(m.created_at);
     bubble.append(body,meta); row.appendChild(bubble);
@@ -374,6 +465,7 @@ function scrollBottom(){requestAnimationFrame(()=>{$('messageScroller').scrollTo
 async function loadMembers(id) {
   const {data,error}=await supabase.rpc('get_conversation_members',{p_conversation_id:id});
   if(error) return;
+  state.members.set(id,data||[]);
   const root=$('memberPills'); root.replaceChildren();
   (data||[]).slice(0,4).forEach(m=>root.appendChild(createAvatar(m.display_name,m.avatar_url,'member-avatar')));
   const current=state.conversations.find(x=>x.id===id);
@@ -385,7 +477,7 @@ function scheduleRead(id) {
   state.readTimer=setTimeout(async()=>{
     if(!state.user||state.activeId!==id)return;
     await supabase.from('conversation_members').update({last_read_at:new Date().toISOString()}).eq('conversation_id',id).eq('user_id',state.user.id);
-    const item=state.conversations.find(x=>x.id===id); if(item){item.unread=0; renderSideList();}
+    const item=state.conversations.find(x=>x.id===id); if(item){item.unread=0; renderSideList(); updateUnreadTitle();}
   },700);
 }
 
@@ -403,44 +495,60 @@ function mergeIncoming(m) {
   const list=state.messages.get(m.conversation_id)||[];
   if(!list.some(x=>String(x.id)===String(m.id))){list.push(m);state.messages.set(m.conversation_id,list);}
   const item=state.conversations.find(x=>x.id===m.conversation_id);
-  if(item){item.lastMessage=m.body;item.lastMessageAt=m.created_at;if(m.sender_id!==state.user.id&&state.activeId!==m.conversation_id)item.unread+=1;}
-  else {clearTimeout(state.inboxTimer);state.inboxTimer=setTimeout(()=>loadInbox().catch(()=>{}),450);}
+  if(item){
+    item.lastMessage=m.body;
+    item.lastMessageAt=m.created_at;
+    if(m.sender_id!==state.user.id&&state.activeId!==m.conversation_id)item.unread+=1;
+    state.conversations.sort((a,b)=>new Date(b.lastMessageAt||0)-new Date(a.lastMessageAt||0));
+  } else {
+    clearTimeout(state.inboxTimer);
+    state.inboxTimer=setTimeout(()=>loadInbox().catch(()=>{}),450);
+  }
   if(state.activeId===m.conversation_id){renderMessages();scrollBottom();if(m.sender_id!==state.user.id)scheduleRead(m.conversation_id);}
+  updateUnreadTitle();
   renderSideList();
 }
 
 async function subscribeMessages() {
   if(state.realtime) await supabase.removeChannel(state.realtime);
+  setConnectionState(navigator.onLine ? 'connecting' : 'offline');
   state.realtime=supabase.channel('msngr-live')
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'messages'},p=>mergeIncoming(p.new))
     .on('postgres_changes',{event:'*',schema:'public',table:'contact_requests'},()=>refreshSocial().catch(()=>{}))
-    .subscribe();
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED') setConnectionState('live');
+      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED') setConnectionState(navigator.onLine?'connecting':'offline');
+    });
 }
 
 async function bootstrap(user) {
-  state.user=user; showApp();
+  state.user=user; showApp(); renderSkeletons(6);
   await ensureProfile();
   await Promise.all([loadInbox(),refreshSocial()]);
   await subscribeMessages();
+  clearInterval(state.heartbeat);
+  state.heartbeat=setInterval(()=> {
+    if(state.user) supabase.from('profiles').update({last_seen_at:new Date().toISOString()}).eq('id',state.user.id).then(()=>{});
+  }, 240000);
   setSection('messages');
 }
 
 async function teardown() {
   if(state.realtime){await supabase.removeChannel(state.realtime);state.realtime=null;}
+  clearInterval(state.heartbeat); state.heartbeat=null;
   Object.assign(state,{user:null,profile:null,conversations:[],people:[],requests:[],contacts:[],activeId:null});
-  state.messages.clear(); showAuth();
+  state.messages.clear(); state.members.clear(); document.title='msngr'; showAuth();
 }
 
 async function uploadImage(bucket,file,maxBytes) {
   if(!file) return null;
   if(!['image/jpeg','image/png','image/webp'].includes(file.type)) throw new Error('Use a JPG, PNG or WebP image.');
   if(file.size>maxBytes) throw new Error('Image is too large.');
-  const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
-  const path=state.user.id+'/'+Date.now()+'.'+ext;
-  const {error}=await supabase.storage.from(bucket).upload(path,file,{upsert:false,cacheControl:'3600'});
+  const path=state.user.id+'/current';
+  const {error}=await supabase.storage.from(bucket).upload(path,file,{upsert:true,cacheControl:'3600',contentType:file.type});
   if(error) throw error;
   const {data}=supabase.storage.from(bucket).getPublicUrl(path);
-  return data.publicUrl;
+  return data.publicUrl+'?v='+Date.now();
 }
 
 async function savePreferences(patch,message='Settings saved') {
@@ -452,12 +560,19 @@ async function savePreferences(patch,message='Settings saved') {
   showToast(message);
 }
 
+function updateGroupSelection() {
+  const count=$('groupContacts').querySelectorAll('input:checked').length;
+  $('groupSelectedCount').textContent=String(count);
+  $('groupSubmit').disabled=count<1;
+}
+
 function renderGroupContacts() {
   const root=$('groupContacts'); root.replaceChildren();
+  $('groupSelectedCount').textContent='0'; $('groupSubmit').disabled=true;
   if(!state.contacts.length){renderEmptyList(root,'Connect with someone before creating a group.');return;}
   state.contacts.forEach(c=>{
     const label=document.createElement('label'); label.className='group-contact';
-    const input=document.createElement('input'); input.type='checkbox'; input.value=c.user_id;
+    const input=document.createElement('input'); input.type='checkbox'; input.value=c.user_id; input.addEventListener('change',updateGroupSelection);
     label.append(input,createAvatar(c.display_name,c.avatar_url));
     const span=document.createElement('span'); span.textContent=c.display_name; label.appendChild(span); root.appendChild(label);
   });
@@ -482,6 +597,7 @@ $('authForm').onsubmit=async e=>{
 };
 
 document.querySelectorAll('.rail-button').forEach(b=>b.onclick=()=>setSection(b.dataset.section));
+document.querySelectorAll('[data-mobile-section]').forEach(b=>b.onclick=()=>setSection(b.dataset.mobileSection));
 $('railProfile').onclick=()=>setSection('settings');
 $('accountMenu').onclick=()=>setSection('settings');
 $('emptyPeople').onclick=()=>setSection('people');
@@ -540,7 +656,23 @@ $('backgroundInput').onchange=async e=>{
 $('enterToSend').onchange=async e=>{try{await savePreferences({enter_to_send:e.target.checked});}catch(err){showToast(err.message);}};
 $('compactMode').onchange=async e=>{try{await savePreferences({compact_mode:e.target.checked});}catch(err){showToast(err.message);}};
 $('signOutButton').onclick=async()=>{await supabase.auth.signOut();await teardown();};
-$('mobileBack').onclick=()=>{state.activeId=null;$('chatView').classList.add('hidden');$('emptyState').classList.remove('hidden');};
+$('mobileBack').onclick=()=>{state.activeId=null;$('chatView').classList.add('hidden');$('emptyState').classList.remove('hidden');renderSideList();};
+
+window.addEventListener('online',()=>{setConnectionState('connecting'); if(state.user) subscribeMessages().catch(()=>{});});
+window.addEventListener('offline',()=>setConnectionState('offline'));
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&!$('modalBackdrop').classList.contains('hidden')){closeModal();return;}
+  const mod=e.metaKey||e.ctrlKey;
+  if(!mod||!state.user)return;
+  if(e.key.toLowerCase()==='k'){
+    e.preventDefault();
+    if(state.section==='settings')setSection('messages');
+    setTimeout(()=>{$('sideSearch')?.focus();$('sideSearch')?.select();},0);
+  }
+  if(e.key==='1'){e.preventDefault();setSection('messages');}
+  if(e.key==='2'){e.preventDefault();setSection('people');}
+  if(e.key===','){e.preventDefault();setSection('settings');}
+});
 
 async function start(){
   setAuthMode('signin');
