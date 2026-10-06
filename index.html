@@ -63,6 +63,7 @@
           <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1A1.7 1.7 0 0 0 4.6 15 1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></svg><span>Settings</span>
         </button>
       </div>
+      <div id="connectionState" class="connection-state connecting" title="Connecting"><i></i></div>
       <button id="railProfile" class="rail-profile" title="Profile"><span id="railAvatar">M</span></button>
     </nav>
 
@@ -183,12 +184,19 @@
       <p class="eyebrow">NEW GROUP</p><h2>Create a group</h2><p>Select accepted contacts. Maximum 21 people including you.</p>
       <form id="groupForm">
         <label class="field"><span>Group name</span><input id="groupName" maxlength="60" required placeholder="Weekend plans"></label>
+        <div class="group-select-meta"><span>Select contacts</span><strong><b id="groupSelectedCount">0</b> selected</strong></div>
         <div id="groupContacts" class="group-contacts"></div>
         <p id="groupMessage" class="form-message"></p>
-        <button class="primary-button" type="submit">Create group</button>
+        <button id="groupSubmit" class="primary-button" type="submit" disabled>Create group</button>
       </form>
     </section>
   </div>
+
+  <nav class="mobile-nav" aria-label="Main navigation">
+    <button class="active" data-mobile-section="messages"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 3V5Z"/></svg><span>Messages</span></button>
+    <button data-mobile-section="people"><svg viewBox="0 0 24 24"><path d="M16 20v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9.5" cy="7" r="4"/><path d="M17 8h4M19 6v4"/></svg><span>People</span><em id="mobileRequestBadge" class="hidden">0</em></button>
+    <button data-mobile-section="settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M4 12a8 8 0 1 0 16 0 8 8 0 1 0-16 0"/></svg><span>Settings</span></button>
+  </nav>
 
   <div id="toast" class="toast hidden"></div>
   <script type="module" src="/app.js"></script>
