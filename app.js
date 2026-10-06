@@ -54,8 +54,15 @@ function setAuthMode(mode) {
   const signup = mode === 'signup';
   $('nameField').classList.toggle('hidden', !signup);
   $('authTitle').textContent = signup ? 'Create account' : 'Sign in';
-  $('authSubmit').textContent = signup ? 'Create account' : 'Sign in';
+  const submitLabel = signup ? 'Create account' : 'Sign in';
+  const submitText = $('authSubmit').querySelector('span');
+  if (submitText) submitText.textContent = submitLabel;
+  else $('authSubmit').textContent = submitLabel;
   $('authSwitch').textContent = signup ? 'Already have an account? Sign in' : 'Need an account? Create one';
+  const intro = document.querySelector('.auth-card-intro');
+  if (intro) intro.textContent = signup
+    ? 'Create your account and jump straight into msngr.'
+    : 'Pick up where you left off and get straight back into your conversations.';
   $('passwordInput').autocomplete = signup ? 'new-password' : 'current-password';
   setMessage($('authMessage'), '', false);
 }
@@ -359,11 +366,21 @@ $('authForm').addEventListener('submit', async (event) => {
         options: { data: { display_name: displayName } }
       });
       if (error) throw error;
-      if (!data.session) {
-        setMessage($('authMessage'), 'Account created. Check your email to confirm it, then sign in.', false);
+
+      if (data.session?.user) {
+        await bootstrap(data.session.user);
         return;
       }
-      await bootstrap(data.user);
+
+      // msngr intentionally has no email-verification flow.
+      // If Supabase is still configured to require confirmation, a session will
+      // not be returned. Try a direct password sign-in so the UI stays aligned
+      // with the intended instant-signup behavior.
+      const signedIn = await supabase.auth.signInWithPassword({ email, password });
+      if (signedIn.error) {
+        throw new Error('Instant signup is currently blocked by the Supabase Auth project setting.');
+      }
+      await bootstrap(signedIn.data.user);
     } else {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
