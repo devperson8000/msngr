@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { createCalling } from './calling/controller.js';
 
 const $ = (id) => document.getElementById(id);
 const envUrl = import.meta.env.VITE_SUPABASE_URL || 'https://uglcxkakkilfndubgrac.supabase.co';
@@ -31,6 +32,8 @@ const state = {
   connectionStatus: 'connecting',
   heartbeat: null
 };
+
+const calling = createCalling({ supabase, getUser: () => state.user, notify: showToast });
 
 const ACCENTS = {
   emerald: ['#16b889','#0b7c60'],
@@ -218,6 +221,7 @@ async function loadInbox() {
     unread:Number(x.unread_count || 0),
     memberCount:Number(x.member_count || 0)
   }));
+  void calling.refresh(state.conversations);
   updateUnreadTitle();
   if (state.section === 'messages') renderSideList();
 }
@@ -485,6 +489,10 @@ function scheduleRead(id) {
 async function openConversation(id) {
   const item=state.conversations.find(x=>x.id===id); if(!item)return;
   state.activeId=id; state.oldest=null;
+  for (const button of [$('voiceCallButton'), $('videoCallButton')]) {
+    button.disabled = item.kind !== 'direct';
+    button.title = item.kind === 'direct' ? button.getAttribute('aria-label') : 'Calling is available in direct conversations';
+  }
   $('chatName').textContent=item.name; applyAvatar($('chatAvatar'),item.name,item.avatarUrl);
   $('settingsView').classList.add('hidden'); $('emptyState').classList.add('hidden'); $('chatView').classList.remove('hidden');
   renderSideList();
@@ -535,6 +543,7 @@ async function bootstrap(user) {
 }
 
 async function teardown() {
+  await calling.destroy();
   if(state.realtime){await supabase.removeChannel(state.realtime);state.realtime=null;}
   clearInterval(state.heartbeat); state.heartbeat=null;
   Object.assign(state,{user:null,profile:null,conversations:[],people:[],requests:[],contacts:[],activeId:null});
@@ -578,6 +587,9 @@ function renderGroupContacts() {
     const span=document.createElement('span'); span.textContent=c.display_name; label.appendChild(span); root.appendChild(label);
   });
 }
+
+$('voiceCallButton').onclick = () => calling.start(currentConversation(), 'audio');
+$('videoCallButton').onclick = () => calling.start(currentConversation(), 'video');
 
 $('authSwitch').onclick=()=>setAuthMode(state.mode==='signin'?'signup':'signin');
 $('authForm').onsubmit=async e=>{

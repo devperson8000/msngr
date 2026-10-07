@@ -1,0 +1,20 @@
+<!doctype html><html><head><link rel="stylesheet" href="/styles.css"></head><body><div id="callRoot"></div><script type="module">
+import { CallEngine } from '/calling/engine.js';
+import { mountCallView } from '/calling/view.js';
+window.createCall = (context, display = false, iceServers = []) => {
+  window.context = context;
+  window.chatMessages = [];
+  const mediaDevices = {getUserMedia: c => navigator.mediaDevices.getUserMedia(c), getDisplayMedia: async () => {
+    if (!display) throw new DOMException('Screen picker cancelled', 'NotAllowedError');
+    const canvas = document.createElement('canvas'); canvas.width=1280; canvas.height=720;
+    const ctx=canvas.getContext('2d'); ctx.fillStyle='#16b889';ctx.fillRect(0,0,1280,720);
+    return canvas.captureStream(15);
+  }};
+  window.call = new CallEngine({send: (ctx, signal) => window.relay(signal), iceServers, mediaDevices,
+    onChange: () => window.renderCall?.(), onChat: m => { window.chatMessages.push(m); window.appendChat?.(m); }});
+  const view=mountCallView(window.call,document.getElementById('callRoot'));
+  window.renderCall=()=>view.render(); window.appendChat=m=>view.appendChat(m);
+  view.render();
+};
+window.ready=true;
+</script></body></html>
