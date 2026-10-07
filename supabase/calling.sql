@@ -17,7 +17,8 @@ revoke all on function private.can_signal_call(text) from public;
 grant usage on schema private to authenticated;
 grant execute on function private.can_signal_call(text) to authenticated;
 
-alter table realtime.messages enable row level security;
+-- Supabase already enables RLS on this managed table.
+-- Manage policies only: ALTER TABLE requires ownership and is rejected.
 drop policy if exists msngr_call_receive on realtime.messages;
 create policy msngr_call_receive on realtime.messages for select to authenticated
 using (extension = 'broadcast' and private.can_signal_call((select realtime.topic())));
