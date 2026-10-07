@@ -193,3 +193,69 @@ test('caller can recover through ICE restart after a transient disconnection',as
  assert.equal(await p.evaluate(()=>window.call.session.restarted),true);
  await p.evaluate(()=>window.call.end());
 });
+test('both participants receive and actually play remote camera and microphone media',async t=>{
+ const [p,q]=await pair(t);await connect(p,q,'video');
+ for(const page of [p,q]){
+  const slots=await page.evaluate(()=>window.call.pc.getTransceivers().map(t=>({kind:t.receiver.track.kind,direction:t.currentDirection})));
+  assert.equal(slots.length,3);assert.deepEqual(slots.map(t=>t.direction),['sendrecv','sendrecv','sendrecv']);
+  assert.deepEqual(slots.map(t=>t.kind),['audio','video','video']);
+  await page.waitForFunction(async()=>{const stats=await window.call.pc.getStats();const inbound=[...stats.values()].filter(s=>s.type==='inbound-rtp');return ['audio','video'].every(kind=>inbound.some(s=>s.kind===kind&&s.bytesReceived>0));},null,{timeout:8000});
+  await page.waitForFunction(()=>{const v=document.querySelector('.call-remote-video');return v.videoWidth>0&&!v.paused&&v.readyState>=2;},null,{timeout:5000});
+  await page.waitForFunction(()=>{const a=document.querySelector('.call-audio');return a.srcObject?.getAudioTracks().length===1&&!a.paused&&a.readyState>=2;},null,{timeout:5000});
+ }
+ await p.evaluate(()=>window.call.end());
+});
+test('calls occupy the viewport and Back preserves audio/video while app and popup remain usable',async t=>{
+ const [p,q]=await pair(t);await p.setViewportSize({width:1280,height:800});await connect(p,q,'video');
+ const box=await p.locator('.call-dialog').boundingBox();assert.equal(Math.round(box.width),1280);assert.equal(Math.round(box.height),800);
+ assert.equal(await p.evaluate(()=>document.getElementById('appView').inert),true);
+ await p.locator('.call-back').click();assert.equal(await p.locator('.call-overlay').isVisible(),false);
+ assert.equal(await p.locator('.call-mini').isVisible(),true);assert.equal(await p.evaluate(()=>document.getElementById('appView').inert),false);
+ await p.locator('#testAppInput').fill('Still in the app');assert.equal(await p.locator('#testAppInput').inputValue(),'Still in the app');
+ assert.equal(await p.evaluate(()=>window.call.snapshot().phase),'connected');
+ assert.equal(await p.evaluate(()=>window.call.localStream.getTracks().every(t=>t.readyState==='live')),true);
+ await p.waitForFunction(()=>!document.querySelector('.call-audio').paused&&document.querySelector('.call-audio').readyState>=2);
+ const before=await q.evaluate(async()=>[...(await window.call.pc.getStats()).values()].filter(s=>s.type==='inbound-rtp').reduce((n,s)=>n+s.bytesReceived,0));
+ await q.waitForFunction(async before=>[...(await window.call.pc.getStats()).values()].filter(s=>s.type==='inbound-rtp').reduce((n,s)=>n+s.bytesReceived,0)>before,before);
+ await p.locator('.call-mini-mic').click();assert.equal(await p.evaluate(()=>window.call.localStream.getAudioTracks()[0].enabled),false);
+ await p.locator('.call-return').click();assert.equal(await p.locator('.call-overlay').isVisible(),true);assert.equal(await p.locator('.call-mini').isVisible(),false);
+ await p.locator('.call-back').click();await p.locator('.call-mini-hangup').click();
+ await q.waitForFunction(()=>window.call.snapshot().phase==='ended');assert.equal(await p.locator('.call-mini').isVisible(),false);
+});
+test('voice calls fill mobile screen, minimize on Escape, and restore focus to the app',async t=>{
+ const [p,q]=await pair(t);await p.setViewportSize({width:390,height:844});await connect(p,q,'audio');
+ const box=await p.locator('.call-dialog').boundingBox();assert.equal(Math.round(box.width),390);assert.equal(Math.round(box.height),844);
+ await p.keyboard.press('Escape');assert.equal(await p.locator('.call-mini').isVisible(),true);
+ await p.locator('#testAppButton').click();await p.keyboard.press('Tab');assert.equal(await p.evaluate(()=>document.activeElement.id),'testAppInput');
+ await p.locator('.call-return').click();await p.locator('.call-back').click();await q.evaluate(()=>window.call.end());
+ await p.waitForFunction(()=>window.call.snapshot().phase==='ended');assert.equal(await p.locator('.call-mini').isVisible(),false);
+ assert.equal(await p.locator('.call-overlay').isVisible(),true);
+ assert.equal(await p.evaluate(()=>document.activeElement.classList.contains('call-dismiss')),true);
+ await p.locator('.call-dismiss').click();assert.equal(await p.locator('.call-overlay').isVisible(),false);
+});
+test('voice-only calls play microphone audio in both directions without camera tracks',async t=>{
+ const [p,q]=await pair(t);await connect(p,q,'audio');
+ for(const page of [p,q]){
+  await page.waitForFunction(async()=>[...(await window.call.pc.getStats()).values()].some(s=>s.type==='inbound-rtp'&&s.kind==='audio'&&s.bytesReceived>0));
+  await page.waitForFunction(()=>{const a=document.querySelector('.call-audio');return a.srcObject?.getAudioTracks().length===1&&!a.paused&&a.readyState>=2;});
+  assert.equal(await page.evaluate(()=>window.call.remoteStream?.getVideoTracks().length),1);
+  assert.equal(await page.evaluate(()=>window.call.localStream.getVideoTracks().length),0);
+  assert.equal(await page.locator('.call-remote-video').isVisible(),false);
+ }
+ await p.evaluate(()=>window.call.end());
+});
+test('answerer shares a screen and camera independently and caller plays each correct stream',async t=>{
+ const [p,q]=await pair(t);await connect(p,q,'video');await q.locator('.call-share').click();
+ await p.waitForFunction(()=>window.call.snapshot().remoteScreen);
+ await p.waitForFunction(()=>{const v=document.querySelector('.call-remote-screen');return v.videoWidth===1280&&!v.paused&&v.readyState>=2;});
+ await p.waitForFunction(()=>document.querySelector('.call-remote-video').videoWidth>0);
+ assert.equal(await p.evaluate(()=>window.call.remoteStream.getVideoTracks().length),1);
+ assert.equal(await p.evaluate(()=>window.call.remoteScreenStream.getVideoTracks().length),1);
+ assert.equal(await p.evaluate(()=>window.call.remoteAudioStream.getTracks().every(t=>t.kind==='audio')),true);
+ await q.locator('.call-camera').click();await p.waitForFunction(()=>!window.call.snapshot().remoteCamera);
+ assert.equal(await p.locator('.call-remote-screen').isVisible(),true);
+ await q.locator('.call-camera').click();await p.waitForFunction(()=>window.call.snapshot().remoteCamera);
+ await p.waitForFunction(()=>document.querySelector('.call-remote-video').videoWidth>0);
+ await q.locator('.call-share').click();await p.waitForFunction(()=>!window.call.snapshot().remoteScreen);
+ await q.locator('.call-hangup').click();
+});

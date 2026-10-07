@@ -11,10 +11,11 @@ export class CallEngine {
     this.state = { phase: 'idle', camera: false, mic: true, screen: false, remoteCamera: false, remoteScreen: false, remoteMic: true, error: '', quality: '' };
     this.seenCalls = new Map();
     this.session = null; this.pc = null; this.localStream = null; this.screenStream = null;
-    this.remoteStream = null; this.remoteScreenStream = null; this.channel = null;
+    this.remoteStream = null; this.remoteAudioStream = null; this.remoteScreenStream = null; this.channel = null;
+    this.audioSender = this.cameraSender = this.screenSender = null;
   }
   snapshot() { return { ...this.state, chatReady: this.channel?.readyState === 'open', localStream: this.localStream,
-    screenStream: this.screenStream, remoteStream: this.remoteStream, remoteScreenStream: this.remoteScreenStream }; }
+    screenStream: this.screenStream, remoteStream: this.remoteStream, remoteAudioStream: this.remoteAudioStream, remoteScreenStream: this.remoteScreenStream, mediaReady: Boolean(this.cameraSender) }; }
   emit(patch = {}) { Object.assign(this.state, patch); this.onChange(this.snapshot()); }
   alive(s) { return this.session === s && ACTIVE.has(this.state.phase); }
   newSession(context, kind, id, role) {
@@ -57,16 +58,24 @@ export class CallEngine {
     const servers = this.getIceServers ? await this.getIceServers() : this.iceServers;
     if (!this.alive(s)) return;
     const pc = this.pc = new RTCPeerConnection({ iceServers: servers, bundlePolicy: 'max-bundle' });
-    this.remoteStream = new MediaStream(); this.remoteScreenStream = new MediaStream();
-    this.audioSender = pc.addTransceiver(stream.getAudioTracks()[0], { direction: 'sendrecv', streams: [stream] }).sender;
-    this.cameraSender = pc.addTransceiver(stream.getVideoTracks()[0] || 'video', { direction: 'sendrecv', streams: [stream] }).sender;
-    this.screenSender = pc.addTransceiver('video', { direction: 'sendrecv' }).sender;
+    this.remoteStream = this.remoteAudioStream = this.remoteScreenStream = null;
+    // Only the offerer creates slots. The answerer must use the slots in the
+    // remote offer: addTransceiver-created slots are not reused by setRemoteDescription.
+    if (s.role === 'caller') {
+      this.audioSender = pc.addTransceiver(stream.getAudioTracks()[0], { direction: 'sendrecv', streams: [stream] }).sender;
+      this.cameraSender = pc.addTransceiver(stream.getVideoTracks()[0] || 'video', { direction: 'sendrecv', streams: [stream] }).sender;
+      this.screenSender = pc.addTransceiver('video', { direction: 'sendrecv' }).sender;
+    }
     pc.onicecandidate = ({ candidate }) => { if (candidate && this.alive(s)) this.signal(s, 'ice', { candidate: candidate.toJSON() }).catch(e => this.fail(s, e)); };
     pc.ontrack = e => {
       if (!this.alive(s)) return;
-      const index = pc.getTransceivers().indexOf(e.transceiver);
-      const target = index === 2 ? this.remoteScreenStream : this.remoteStream;
-      if (!target.getTracks().some(t => t.id === e.track.id)) target.addTrack(e.track);
+      const videoSlots = pc.getTransceivers().filter(t => t.receiver.track.kind === 'video');
+      const field = e.track.kind === 'audio' ? 'remoteAudioStream'
+        : e.transceiver === videoSlots[1] ? 'remoteScreenStream' : 'remoteStream';
+      // Replacing the stream reference attaches an actual track to each player.
+      // Empty/mixed streams can select the reserved screen track instead of camera.
+      this[field] = new MediaStream([e.track]);
+      e.track.onunmute = () => { if (this.alive(s)) this.emit(); };
       this.emit();
     };
     pc.onconnectionstatechange = () => this.connectionChanged(s, pc);
@@ -77,6 +86,24 @@ export class CallEngine {
     if (s.role === 'caller') this.setupChannel(s, pc.createDataChannel('msngr-call', { ordered: true }));
     this.emit({ camera: stream.getVideoTracks().length > 0 });
     await this.tune(this.cameraSender, 1800000, 'maintain-framerate');
+  }
+  async attachAnswerMedia(s) {
+    const pc = this.pc;
+    const audio = pc.getTransceivers().filter(t => t.receiver.track.kind === 'audio');
+    const video = pc.getTransceivers().filter(t => t.receiver.track.kind === 'video');
+    if (audio.length !== 1 || video.length !== 2) throw new Error('Incompatible call media. Please restart the call.');
+    const slots = [audio[0], video[0], video[1]];
+    const tracks = [this.localStream.getAudioTracks()[0], this.localStream.getVideoTracks()[0] || null, null];
+    for (let i = 0; i < slots.length; i++) {
+      slots[i].direction = 'sendrecv';
+      if (i < 2) slots[i].sender.setStreams?.(this.localStream);
+      await slots[i].sender.replaceTrack(tracks[i]);
+      if (!this.alive(s)) return;
+    }
+    [this.audioSender, this.cameraSender, this.screenSender] = slots.map(t => t.sender);
+    s.mediaAttached = true;
+    await this.tune(this.cameraSender, 1800000, 'maintain-framerate');
+    if (this.alive(s)) this.emit();
   }
   async tune(sender, bitrate, degradationPreference) {
     if (!sender?.track) return;
@@ -112,6 +139,8 @@ export class CallEngine {
         if (s.offerHandled && this.state.phase === 'connecting') return;
         s.offerHandled = true;
         await this.pc.setRemoteDescription(message.description); if (!this.alive(s)) return;
+        if (!s.mediaAttached) await this.attachAnswerMedia(s);
+        if (!this.alive(s)) return;
         await this.flushIce(s);
         const answer = await this.pc.createAnswer(); if (!this.alive(s)) return;
         await this.pc.setLocalDescription(answer); if (!this.alive(s)) return;
@@ -210,7 +239,7 @@ export class CallEngine {
     this.emit({ mic }); this.sendMedia();
   }
   async toggleCamera() {
-    const s = this.session; if (!this.alive(s) || !this.pc || s.mediaBusy) return;
+    const s = this.session; if (!this.alive(s) || !this.pc || !this.cameraSender || s.mediaBusy) return;
     s.mediaBusy = true;
     try {
       if (this.state.camera) {
@@ -232,7 +261,7 @@ export class CallEngine {
     finally { s.mediaBusy = false; }
   }
   async toggleScreen() {
-    const s = this.session; if (!this.alive(s) || !this.pc || s.screenBusy) return;
+    const s = this.session; if (!this.alive(s) || !this.pc || !this.screenSender || s.screenBusy) return;
     if (!this.mediaDevices?.getDisplayMedia) { this.emit({ error: 'Screen sharing is not supported in this browser.' }); return; }
     s.screenBusy = true;
     try {
@@ -280,8 +309,9 @@ export class CallEngine {
     for (const timer of ['ringTimer', 'connectTimer', 'disconnectTimer', 'statsTimer']) { clearTimeout(this[timer]); this[timer] = null; }
     this.channel?.close(); this.channel = null;
     if (this.pc) { this.pc.onconnectionstatechange = null; this.pc.onicecandidate = null; this.pc.ontrack = null; this.pc.oniceconnectionstatechange = null; this.pc.close(); this.pc = null; }
-    stop(this.localStream); stop(this.screenStream); stop(this.remoteStream); stop(this.remoteScreenStream);
-    this.localStream = this.screenStream = this.remoteStream = this.remoteScreenStream = null;
+    stop(this.localStream); stop(this.screenStream); stop(this.remoteStream); stop(this.remoteAudioStream); stop(this.remoteScreenStream);
+    this.localStream = this.screenStream = this.remoteStream = this.remoteAudioStream = this.remoteScreenStream = null;
+    this.audioSender = this.cameraSender = this.screenSender = null;
     s.candidates = [];
     this.emit({ phase: 'ended', reason, error, camera: false, screen: false, remoteCamera: false, remoteScreen: false });
   }

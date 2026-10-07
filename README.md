@@ -66,6 +66,8 @@ The application contains no confirmation-email, OTP-email, SMTP or Ethereal flow
 
 Open a direct conversation and use the phone or camera button. Your contact gets an incoming-call prompt with Accept/Decline. Calls include microphone mute, camera on/off (including adding video to a voice call), separate screen sharing, elapsed time and connection feedback, and an in-call chat panel. Camera and screen can be shared together. The chat is ephemeral and disappears when a new call starts; it is separate from persistent conversation messages. Group calling is not included.
 
+Voice and video calls fill the screen. **Back to app** (or Escape) keeps the call connected and shows a floating call popup with return, mute, and hang-up controls. Microphone audio continues while using the app. Return to the call to view video, screen sharing, and in-call chat.
+
 Media travels through encrypted WebRTC connections, directly or via TURN. Capture targets 720p at 30 fps for camera video and 1080p at 15 fps for screen sharing, with browser adaptation to available bandwidth. Screen audio is not shared. No call recording is implemented. Both participants need msngr open and signed in; there is no background push notification service. Calls time out after 45 seconds without an answer.
 
 Browsers require microphone/camera permission and a user-selected screen-sharing source. Use HTTPS in production; localhost works for development. Screen sharing depends on browser/platform support and is often unavailable on mobile browsers. Device denial, cancellation, missing hardware, signaling failures, and connection loss display actionable feedback. Hangup/signout stops owned capture tracks immediately.
@@ -84,6 +86,8 @@ The browser requests `/api/ice` with its current Supabase session; credentials a
 ### Checks
 
 Run `npm run check`, `npm run build`, and `npm test`. Browser tests require Chromium (`CHROMIUM_PATH` overrides `/usr/bin/chromium`) and Playwright. Tests connect two isolated browser contexts with real RTCPeerConnections and synthetic devices; the screen-picker acquisition is replaced with a real canvas MediaStream for deterministic tests. A test-only signaling bridge replaces hosted Supabase. This checks the engine and UI, not live RLS or real screen-picker permissions.
+
+Playback checks verify received audio and video in both directions, camera and screen separation, voice-only calls, and continued audio while minimized. UI checks cover desktop/mobile fullscreen sizing, popup controls, and keyboard focus when returning to the app or ending a call.
 
 If Chromium's managed network policy disables direct UDP, use a disposable **local-only** TURN relay, leaving the browser policy intact:
 

@@ -4,6 +4,7 @@ const icons = {
  screen: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4m-3-11 3-3 3 3M12 7v6"/>',
  chat: '<path d="M4 4h16v13H9l-5 4V4Z"/><path d="M8 9h8M8 13h5"/>',
  phone: '<path d="M5 14v5H2v-7c5-6 15-6 20 0v7h-3v-5l-4-2H9l-4 2Z"/>',
+ back: '<path d="m14 5-7 7 7 7M7 12h14"/>',
  close: '<path d="m6 6 12 12M6 18 18 6"/>',
 };
 const svg = name => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]}</svg>`;
@@ -12,7 +13,7 @@ const elapsed = time => { const n = Math.max(0, Math.floor((Date.now() - time) /
 
 export function mountCallView(engine, root) {
   root.innerHTML = `<div class="call-overlay hidden"><section class="call-dialog" role="dialog" aria-modal="true" aria-labelledby="callPeer" tabindex="-1">
-    <header class="call-heading"><div><p class="eyebrow">MSNGR CALL</p><h2 id="callPeer"></h2><p class="call-status" role="status" aria-live="polite"></p></div><span class="call-timer" aria-label="Call duration">00:00</span></header>
+    <header class="call-heading"><button class="call-back" type="button" aria-label="Back to app, call stays connected">${svg('back')}<span>Back to app<small>Call stays on</small></span></button><div><p class="eyebrow">MSNGR CALL</p><h2 id="callPeer"></h2><p class="call-status" role="status" aria-live="polite"></p></div><span class="call-timer" aria-label="Call duration">00:00</span></header>
     <div class="call-body"><div class="call-stage">
       <div class="call-camera-tile"><video class="call-remote-video" autoplay playsinline muted></video><div class="call-person"><span class="call-avatar"></span><p class="call-person-label"></p></div><span class="call-peer-label"></span></div>
       <div class="call-screen-tile hidden"><video class="call-remote-screen" autoplay playsinline muted></video><span>Contact’s screen</span></div>
@@ -23,11 +24,19 @@ export function mountCallView(engine, root) {
     <p class="call-error hidden" role="alert"></p><div class="call-incoming hidden"><button class="call-decline" type="button">Decline</button><button class="call-accept" type="button">Accept call</button></div>
     <footer class="call-controls"><button class="call-mic" type="button">${svg('mic')}<span>Mute</span></button><button class="call-camera" type="button">${svg('camera')}<span>Camera</span></button><button class="call-share" type="button">${svg('screen')}<span>Share screen</span></button><button class="call-chat-toggle" type="button" aria-expanded="false">${svg('chat')}<span>Chat</span></button><button class="call-hangup" type="button">${svg('phone')}<span>End call</span></button></footer>
     <div class="call-ended hidden"><button class="call-dismiss" type="button">Close</button></div><p class="call-footer-note">Encrypted peer-to-peer media · No recording</p>
-  </section></div>`;
+  </section></div><section class="call-mini hidden" aria-label="Ongoing call">
+    <button class="call-return" type="button" aria-label="Return to full-screen call"><span class="call-mini-avatar"></span><span><strong class="call-mini-name"></strong><small><i></i><span class="call-mini-status">In call</span> · <span class="call-mini-time">00:00</span></small></span></button>
+    <button class="call-mini-mic" type="button" aria-label="Mute microphone">${svg('mic')}</button><button class="call-mini-hangup" type="button" aria-label="End call">${svg('phone')}</button>
+    <button class="call-mini-enable-audio hidden" type="button">Enable audio</button>
+  </section>`;
   const $ = selector => root.querySelector(selector);
-  let timer, priorFocus, visible = false, lastId, chatOpen = false;
+  let timer, priorFocus, visible = false, lastId, lastPhase = 'idle', chatOpen = false, minimized = false;
   const run = fn => Promise.resolve().then(fn).catch(e => engine.emit({ error: e.message || 'Please try again.' }));
   $('.call-mic').onclick = () => engine.toggleMic();
+  $('.call-mini-mic').onclick = () => engine.toggleMic();
+  $('.call-mini-hangup').onclick = () => engine.end();
+  $('.call-back').onclick = () => { minimized = true; render(); };
+  $('.call-return').onclick = () => { minimized = false; render(); resumeAudio(); };
   $('.call-camera').onclick = () => run(() => engine.toggleCamera());
   $('.call-share').onclick = () => run(() => engine.toggleScreen());
   $('.call-stop-sharing').onclick = () => run(() => engine.toggleScreen());
@@ -36,12 +45,18 @@ export function mountCallView(engine, root) {
   $('.call-accept').onclick = () => run(() => engine.accept());
   $('.call-dismiss').onclick = () => engine.dismiss();
   $('.call-chat-toggle').onclick = () => { chatOpen = !chatOpen; render(); if (chatOpen) $('#callChatInput').focus(); };
-  $('.call-enable-audio').onclick = () => $('.call-audio').play().then(() => $('.call-enable-audio').classList.add('hidden')).catch(() => {});
+  $('.call-enable-audio').onclick = resumeAudio;
+  $('.call-mini-enable-audio').onclick = resumeAudio;
+  $('.call-audio').onplaying = () => { for (const selector of ['.call-enable-audio', '.call-mini-enable-audio']) $(selector).classList.add('hidden'); };
   $('.call-chat-form').onsubmit = e => { e.preventDefault(); try { engine.sendChat($('#callChatInput').value); $('#callChatInput').value = ''; } catch (error) { engine.emit({ error: error.message }); } };
   $('#callChatInput').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('.call-chat-form').requestSubmit(); } };
   const keydown = e => {
     if (!visible) return;
-    if (e.key === 'Escape' && engine.snapshot().phase === 'ended') { engine.dismiss(); return; }
+    if (e.key === 'Escape') {
+      if (engine.snapshot().phase === 'ended') engine.dismiss();
+      else if (engine.snapshot().phase !== 'incoming') { minimized = true; render(); }
+      e.stopImmediatePropagation(); return;
+    }
     if (e.key !== 'Tab') return;
     const focusable = [...root.querySelectorAll('button:not(:disabled),textarea:not(:disabled)')].filter(el => el.getClientRects().length);
     const first = focusable[0], last = focusable.at(-1);
@@ -50,19 +65,49 @@ export function mountCallView(engine, root) {
     else if (!e.shiftKey && (document.activeElement === last || !root.contains(document.activeElement) || document.activeElement === $('.call-dialog'))) { e.preventDefault(); first.focus(); }
   };
   document.addEventListener('keydown', keydown, true);
-  function attach(video, stream) {
-    if (video.srcObject !== stream) { video.srcObject = stream; if (stream) video.play().catch(() => {}); }
+  function resumeAudio() {
+    const audio = $('.call-audio');
+    if (audio.srcObject?.getAudioTracks().length) audio.play().catch(() => {});
+  }
+  function attach(element, stream, audible = false) {
+    const kind = element.tagName === 'AUDIO' ? 'audio' : 'video';
+    const tracks = stream?.getTracks().filter(track => track.kind === kind && track.readyState === 'live') || [];
+    const actual = tracks.length ? stream : null;
+    const key = tracks.map(track => track.id).join(',');
+    if (element.srcObject !== actual || element.dataset.callTracks !== key) {
+      element.srcObject = actual; element.dataset.callTracks = key;
+    }
+    if (actual && element.paused) element.play().catch(error => {
+      if (audible && element.srcObject === actual && error.name === 'NotAllowedError' && !['idle', 'ended'].includes(engine.snapshot().phase)) {
+        for (const selector of ['.call-enable-audio', '.call-mini-enable-audio']) $(selector).classList.remove('hidden');
+      }
+    });
+  }
+  function tick() {
+    const st = engine.snapshot(), time = st.connectedAt ? elapsed(st.connectedAt) : '00:00';
+    $('.call-timer').textContent = time; $('.call-mini-time').textContent = time;
   }
   function render() {
-    const s = engine.snapshot(), shown = s.phase !== 'idle', incoming = s.phase === 'incoming', ended = s.phase === 'ended';
+    const s = engine.snapshot(), active = s.phase !== 'idle', incoming = s.phase === 'incoming', ended = s.phase === 'ended';
+    if (s.id !== lastId) { lastId = s.id; $('.call-chat-log').replaceChildren(); chatOpen = false; minimized = false; }
+    if (ended || incoming || !active) minimized = false;
+    const shown = active && !minimized;
     $('.call-overlay').classList.toggle('hidden', !shown);
+    $('.call-mini').classList.toggle('hidden', !active || !minimized);
     const app = document.getElementById('appView'); if (app) app.inert = shown;
-    if (shown && !visible) { priorFocus = document.activeElement; queueMicrotask(() => (incoming ? $('.call-accept') : $('.call-dialog')).focus()); }
-    if (!shown && visible) { priorFocus?.focus?.(); clearInterval(timer); timer = null; }
-    visible = shown;
-    if (s.id !== lastId) { lastId = s.id; $('.call-chat-log').replaceChildren(); chatOpen = false; }
-    if (shown && !timer) timer = setInterval(() => { const st = engine.snapshot(); $('.call-timer').textContent = st.connectedAt ? elapsed(st.connectedAt) : '00:00'; }, 1000);
-    if (ended) { clearInterval(timer); timer = null; }
+    if (shown && (!visible || (ended && lastPhase !== 'ended'))) { if (!visible && !root.contains(document.activeElement)) priorFocus = document.activeElement; queueMicrotask(() => { if (visible) (ended ? $('.call-dismiss') : incoming ? $('.call-accept') : $('.call-back')).focus(); }); }
+    if (!shown && visible) { priorFocus?.focus?.(); }
+    visible = shown; lastPhase = s.phase;
+    if (active && !ended && !timer) timer = setInterval(tick, 1000);
+    if (!active || ended) { clearInterval(timer); timer = null; }
+    tick();
+    $('.call-back').classList.toggle('hidden', incoming || ended);
+    $('.call-mini-avatar').textContent = initials(s.peerName);
+    $('.call-mini-name').textContent = s.peerName || 'Call';
+    $('.call-mini-status').textContent = ({ preparing: 'Preparing', ringing: 'Ringing', connecting: 'Connecting', connected: 'In call', reconnecting: 'Reconnecting' })[s.phase] || 'In call';
+    $('.call-mini-mic').disabled = !s.localStream;
+    $('.call-mini-mic').setAttribute('aria-pressed', String(!s.mic));
+    $('.call-mini-mic').setAttribute('aria-label', s.mic ? 'Mute microphone' : 'Unmute microphone');
     $('#callPeer').textContent = s.peerName || 'Call';
     $('.call-avatar').textContent = initials(s.peerName);
     $('.call-peer-label').textContent = `${s.peerName || 'Contact'}${s.remoteMic === false ? ' · Mic muted' : ''}`;
@@ -79,13 +124,12 @@ export function mountCallView(engine, root) {
     $('.call-stage').classList.toggle('has-screen', Boolean(s.remoteScreen));
     $('.call-sharing-note').classList.toggle('hidden', !s.screen);
     attach($('.call-local-video'), s.localStream); attach($('.call-remote-video'), s.remoteStream); attach($('.call-remote-screen'), s.remoteScreenStream);
-    const audio = $('.call-audio');
-    if (audio.srcObject !== s.remoteStream) { audio.srcObject = s.remoteStream; if (s.remoteStream) audio.play().catch(() => { if (engine.snapshot().phase !== 'ended') $('.call-enable-audio').classList.remove('hidden'); }); }
-    if (ended || !shown) $('.call-enable-audio').classList.add('hidden');
+    attach($('.call-audio'), s.remoteAudioStream, true);
+    if (ended || !active) for (const selector of ['.call-enable-audio', '.call-mini-enable-audio']) $(selector).classList.add('hidden');
     $('.call-incoming').classList.toggle('hidden', !incoming); $('.call-ended').classList.toggle('hidden', !ended);
     $('.call-controls').classList.toggle('hidden', incoming || ended);
     const canControl = !!s.localStream && ['ringing', 'connecting', 'connected', 'reconnecting'].includes(s.phase);
-    $('.call-mic').disabled = !canControl; $('.call-camera').disabled = !canControl;
+    $('.call-mic').disabled = !canControl; $('.call-camera').disabled = !canControl || !s.mediaReady;
     $('.call-share').disabled = !['connected', 'reconnecting'].includes(s.phase);
     $('.call-mic').setAttribute('aria-pressed', String(!s.mic)); $('.call-mic').setAttribute('aria-label', s.mic ? 'Mute microphone' : 'Unmute microphone'); $('.call-mic span').textContent = s.mic ? 'Mute' : 'Unmute';
     $('.call-camera').setAttribute('aria-pressed', String(s.camera)); $('.call-camera').setAttribute('aria-label', s.camera ? 'Turn camera off' : 'Turn camera on'); $('.call-camera span').textContent = s.camera ? 'Camera off' : 'Camera on';

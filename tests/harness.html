@@ -1,4 +1,4 @@
-<!doctype html><html><head><link rel="stylesheet" href="/styles.css"></head><body><div id="callRoot"></div><script type="module">
+<!doctype html><html><head><link rel="stylesheet" href="/styles.css"></head><body><main id="appView"><button id="testAppButton" type="button">App action</button><input id="testAppInput" aria-label="App input"></main><div id="callRoot"></div><script type="module">
 import { CallEngine } from '/calling/engine.js';
 import { mountCallView } from '/calling/view.js';
 window.createCall = (context, display = false, iceServers = []) => {
